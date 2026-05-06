@@ -1,0 +1,123 @@
+[
+  {
+    "title": "Digital technologies for applying algorithms to spirometry to support asthma and COPD diagnosis in primary care and community diagnostic centres: early-use assessment",
+    "reference": "HTG776",
+    "url": "https://www.nice.org.uk/guidance/htg776",
+    "guidance_type": "HealthTech guidance",
+    "published": "02 April 2026",
+    "last_updated": "02 April 2026",
+    "status": "new",
+    "source_pages": [
+      {
+        "url": "https://www.nice.org.uk/guidance/htg776",
+        "kind": "html",
+        "title": "Digital technologies for applying algorithms to spirometry to support asthma and COPD diagnosis in primary care and community diagnostic centres",
+        "text": "NICE HealthTech guidance HTG776. Published 02 April 2026. Evidence-based recommendations on the early use of digital technologies for applying algorithms to spirometry to support asthma and COPD diagnosis in primary care and community diagnostic centres."
+      },
+      {
+        "url": "https://www.nice.org.uk/guidance/htg776/chapter/recommendations",
+        "kind": "html",
+        "title": "Recommendations",
+        "text": "ArtiQ.Spiro can be used in the NHS during the evidence generation period as an option for applying algorithms to spirometry to support asthma and COPD diagnosis in primary care and community diagnostic centres. It can only be used following clinical assessment and with clinical oversight from a healthcare professional to make the final diagnosis, if evidence generation is taking place, and with appropriate regulatory approval including DTAC approval. More research is needed for EasyOne Connect, GoSpiro and LungHealth before NHS funding for this purpose. Potential benefits include improved access to diagnostic spirometry and reduced referral burden. Risks include uncertain diagnostic accuracy, false positives and false negatives, effects on prescribing decisions, staff resource impact, and information governance requirements."
+      }
+    ]
+  },
+  {
+    "title": "Suspected cancer: recognition and referral",
+    "reference": "NG12",
+    "url": "https://www.nice.org.uk/guidance/ng12",
+    "guidance_type": "NICE guideline",
+    "published": "23 June 2015",
+    "last_updated": "15 April 2026",
+    "status": "updated",
+    "source_pages": [
+      {
+        "url": "https://www.nice.org.uk/guidance/ng12",
+        "kind": "html",
+        "title": "Overview",
+        "text": "Last updated 15 April 2026. NICE reviewed the evidence for referral for ovarian cancer, endometrial cancer and non-site-specific weight loss. NICE added new and updated recommendations on ovarian cancer age and serum CA125 thresholds, endometrial cancer, and non-site-specific weight loss."
+      },
+      {
+        "url": "https://www.nice.org.uk/guidance/ng12/chapter/recommendations-organised-by-site-of-cancer",
+        "kind": "html",
+        "title": "Recommendations organised by site of cancer",
+        "text": "For people aged 39 or under with persistent symptoms that suggest ovarian cancer, do not use serum CA125 in isolation and consider urgent direct access ultrasound of abdomen and pelvis. For people aged 40 or over with persistent symptoms that suggest ovarian cancer, measure CA125 in primary care. Arrange urgent direct access ultrasound depending on age and serum CA125 thresholds: 40 to 49 years 35 IU/ml or greater; 50 to 59 years 31 IU/ml or greater; 60 to 69 years 24 IU/ml or greater; 70 to 79 years 25 IU/ml or greater; 80+ years 31 IU/ml or greater. If ultrasound suggests ovarian cancer, use suspected cancer pathway referral. For unexplained post-menopausal bleeding not attributable to HRT, refer for suspected endometrial cancer if aged 55 or over, and consider suspected cancer referral if under 55. There is limited evidence for unscheduled bleeding on sequential or continuous HRT; British Menopause Society guidance is cited."
+      }
+    ]
+  },
+  {
+    "title": "Menopause: identification and management",
+    "reference": "NG23",
+    "url": "https://www.nice.org.uk/guidance/ng23",
+    "guidance_type": "NICE guideline",
+    "published": "12 November 2015",
+    "last_updated": "15 April 2026",
+    "status": "updated",
+    "source_pages": [
+      {
+        "url": "https://www.nice.org.uk/guidance/ng23/chapter/update-information",
+        "kind": "html",
+        "title": "Update information",
+        "text": "April 2026: NICE amended recommendation 1.8.4 and added recommendation 1.8.5 to align with advice on unscheduled vaginal bleeding while taking systemic HRT in the suspected cancer guideline."
+      },
+      {
+        "url": "https://www.nice.org.uk/guidance/ng23/chapter/recommendations",
+        "kind": "html",
+        "title": "Recommendations",
+        "text": "Explain to people with a uterus that vaginal bleeding is a common side effect during the first 6 months of taking systemic HRT or within any 3 months of changing the dose or preparation of systemic HRT, and that they will be asked about this during their 3-month review. Advise prompt medical help if unscheduled vaginal bleeding occurs beyond these timeframes. NICE notes limited evidence for people with unscheduled vaginal bleeding while on sequential or continuous HRT and cites British Menopause Society guidance."
+      }
+    ]
+  },
+  {
+    "title": "Ovarian cancer",
+    "reference": "QS18",
+    "url": "https://www.nice.org.uk/guidance/qs18",
+    "guidance_type": "Quality standard",
+    "published": "21 May 2012",
+    "last_updated": "15 April 2026",
+    "status": "updated",
+    "source_pages": [
+      {
+        "url": "https://www.nice.org.uk/guidance/qs18",
+        "kind": "html",
+        "title": "Overview",
+        "text": "This quality standard covers identification and management of familial and genetic risk and recognition and management of ovarian, fallopian tube and primary peritoneal cancer or borderline ovarian cancer in adults with female reproductive organs. Updated 15 April 2026 alongside updated recommendations in suspected cancer guidance."
+      },
+      {
+        "url": "https://www.nice.org.uk/guidance/qs18/chapter/quality-statements",
+        "kind": "html",
+        "title": "Quality statements",
+        "text": "Statement 2: Adults aged 40 and over with persistent symptoms that suggest ovarian cancer have an urgent, direct access ultrasound scan of the abdomen and pelvis if indicated by their age and serum CA125 level. Marked 2025, updated 2026."
+      },
+      {
+        "url": "https://www.nice.org.uk/guidance/qs18/resources/ovarian-cancer-pdf-2098492029637",
+        "kind": "pdf",
+        "title": "Ovarian cancer quality standard PDF",
+        "text": "Definitions of terms used in this quality statement. Persistent symptoms that suggest ovarian cancer. Symptoms include, particularly in those aged 50 and over: abdominal distension, often referred to as bloating; feeling full, known as satiety, and/or loss of appetite; pelvic or abdominal pain; increased urinary urgency and/or frequency; unexplained weight loss; unexplained fatigue; unexplained changes in bowel habit; or symptoms that suggest irritable bowel syndrome if aged 50 or over. If indicated by their age and serum CA125 level: ultrasound of the abdomen and pelvis depending on age and serum CA125 according to the thresholds below: 40 to 49, 35 IU/ml or greater; 50 to 59, 31 IU/ml or greater; 60 to 69, 24 IU/ml or greater; 70 to 79, 25 IU/ml or greater; 80+, 31 IU/ml or greater. Urgent, direct access ultrasound: an ultrasound to be done within 2 weeks, with primary care retaining clinical responsibility throughout, including acting on the result."
+      }
+    ]
+  },
+  {
+    "title": "Sodium zirconium cyclosilicate for treating hyperkalaemia",
+    "reference": "TA1148",
+    "url": "https://www.nice.org.uk/guidance/ta1148",
+    "guidance_type": "Technology appraisal guidance",
+    "published": "29 April 2026",
+    "last_updated": "29 April 2026",
+    "status": "replaced",
+    "source_pages": [
+      {
+        "url": "https://www.nice.org.uk/guidance/ta1148",
+        "kind": "html",
+        "title": "Overview",
+        "text": "Evidence-based recommendations on sodium zirconium cyclosilicate for treating hyperkalaemia in adults. This guidance updates and replaces TA599."
+      },
+      {
+        "url": "https://www.nice.org.uk/guidance/ta1148/chapter/1-Recommendations",
+        "kind": "html",
+        "title": "Recommendations",
+        "text": "Sodium zirconium cyclosilicate can be used as an option for treating hyperkalaemia in adults only if used in emergency care for acute life-threatening hyperkalaemia alongside standard care, or for persistent hyperkalaemia in people with chronic kidney disease stage 3b to 5 or heart failure if they have confirmed serum potassium of at least 5.5 mmol/litre, are not taking an optimised RAAS inhibitor dosage because of hyperkalaemia, and are not on dialysis. It must be funded in the NHS in England within 90 days if it is considered the most suitable option."
+      }
+    ]
+  }
+]

@@ -1,0 +1,78 @@
+name: NICE Guidance Monthly Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      month:
+        description: "Optional month to review, for example 'April 2026' or '2026-04'. Leave blank for default."
+        required: false
+        type: string
+  schedule:
+    # GitHub cron cannot express "last day of month" directly, so the job wakes up
+    # on possible last days and the month-check step gates the real run.
+    - cron: "0 17 28-31 * *"
+
+jobs:
+  monthly-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check last day of month
+        id: monthcheck
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          from datetime import date, timedelta
+          tomorrow = date.today() + timedelta(days=1)
+          print(f"run_monthly={'true' if tomorrow.day == 1 else 'false'}")
+          PY
+
+      - name: Check out repository
+        if: github.event_name == 'workflow_dispatch' || steps.monthcheck.outputs.run_monthly == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: github.event_name == 'workflow_dispatch' || steps.monthcheck.outputs.run_monthly == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        if: github.event_name == 'workflow_dispatch' || steps.monthcheck.outputs.run_monthly == 'true'
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+
+      - name: Write Google OAuth token
+        if: github.event_name == 'workflow_dispatch' || steps.monthcheck.outputs.run_monthly == 'true'
+        env:
+          GOOGLE_OAUTH_TOKEN_JSON: ${{ secrets.GOOGLE_OAUTH_TOKEN_JSON }}
+        shell: bash
+        run: |
+          if [ -z "$GOOGLE_OAUTH_TOKEN_JSON" ]; then
+            echo "Missing GOOGLE_OAUTH_TOKEN_JSON repository secret." >&2
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_OAUTH_TOKEN_JSON" > .google_token.json
+
+      - name: Run NICE guidance review
+        if: github.event_name == 'workflow_dispatch' || steps.monthcheck.outputs.run_monthly == 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.month }}" ]; then
+            python -m nice_guidance_monitor.cli --config config.cloud.json --month "${{ inputs.month }}"
+          else
+            python -m nice_guidance_monitor.cli --config config.cloud.json
+          fi
+
+      - name: Upload generated reports as workflow artifact
+        if: always() && (github.event_name == 'workflow_dispatch' || steps.monthcheck.outputs.run_monthly == 'true')
+        uses: actions/upload-artifact@v4
+        with:
+          name: nice-guidance-review-output
+          path: outputs/
+          if-no-files-found: ignore

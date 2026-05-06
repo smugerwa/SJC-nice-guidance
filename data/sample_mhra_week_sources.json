@@ -1,0 +1,36 @@
+[
+  {
+    "title": "Class 2 Medicines Recall: Crescent Pharma Limited, Ramipril 10mg capsules, EL(26)A/19",
+    "reference": "EL(26)A/19",
+    "url": "https://www.gov.uk/drug-device-alerts/class-2-medicines-recall-crescent-pharma-limited-ramipril-10mg-capsules-el-26-a-19",
+    "alert_type": "Medicines recall/notification",
+    "medical_specialisms": ["Cardiovascular disease and lipidology", "Dispensing GP practices", "General practice"],
+    "issued": "20 April 2026",
+    "summary": "Crescent Pharma Limited is recalling one batch of Ramipril 10mg Capsules as a precautionary measure due to a potential error at the manufacturing site.",
+    "source_pages": [
+      {
+        "url": "https://www.gov.uk/drug-device-alerts/class-2-medicines-recall-crescent-pharma-limited-ramipril-10mg-capsules-el-26-a-19",
+        "kind": "html",
+        "title": "Class 2 Medicines Recall: Crescent Pharma Limited, Ramipril 10mg capsules, EL(26)A/19",
+        "text": "Crescent Pharma Limited is recalling one batch of Ramipril 10mg Capsules as a precautionary measure due to a potential error at the manufacturing site. Healthcare professionals should stop supplying the affected batch, quarantine remaining stock and return it through the normal supplier route. Patients should not stop ramipril without clinical advice. Issued: 20 April 2026. Alert type: Medicines recall/notification. Medical specialism: Cardiovascular disease and lipidology; Dispensing GP practices; General practice."
+      }
+    ]
+  },
+  {
+    "title": "Field Safety Notices: 13 to 17 April 2026",
+    "reference": "",
+    "url": "https://www.gov.uk/drug-device-alerts/field-safety-notices-13-to-17-april-2026",
+    "alert_type": "Field safety notice",
+    "medical_specialisms": [],
+    "issued": "21 April 2026",
+    "summary": "List of Field Safety Notices from 13 to 17 April 2026.",
+    "source_pages": [
+      {
+        "url": "https://www.gov.uk/drug-device-alerts/field-safety-notices-13-to-17-april-2026",
+        "kind": "html",
+        "title": "Field Safety Notices: 13 to 17 April 2026",
+        "text": "List of Field Safety Notices from 13 to 17 April 2026. The notices are mainly manufacturer-led hospital device notices. No GP prescribing, dispensing, patient contact or primary care pathway action is stated."
+      }
+    ]
+  }
+]

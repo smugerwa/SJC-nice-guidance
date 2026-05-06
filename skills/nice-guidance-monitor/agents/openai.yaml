@@ -1,0 +1,3 @@
+display_name: NICE Guidance Monitor
+short_description: Creates concise monthly NICE clinical governance briefs for UK primary care.
+default_prompt: Create a concise clinician-facing NICE guidance monthly review for the target month, focusing on key practice changes, meeting discussion points, and actions for UK primary care.
