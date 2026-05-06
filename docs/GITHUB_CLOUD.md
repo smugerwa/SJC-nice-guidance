@@ -30,6 +30,29 @@ using:
 smtp.office365.com:587
 ```
 
+## Email Troubleshooting
+
+The cloud test confirmed that Google Doc creation works. If the run fails at the email step with:
+
+```text
+535 5.7.139 Authentication unsuccessful
+```
+
+Microsoft 365 has rejected SMTP authentication. Common fixes:
+
+- Use `SMTP_USERNAME=info@skinjointclinic.co.uk`.
+- Use an app password if the mailbox/account uses multi-factor authentication and app passwords are allowed.
+- In Microsoft 365 admin, enable **Authenticated SMTP** for the mailbox.
+- Check tenant security defaults or conditional access rules; these can block SMTP AUTH entirely.
+
+Because the email alert is required, `config.cloud.json` sets:
+
+```json
+"require_email_notification": true
+```
+
+This means future cloud runs fail visibly if the report is created but the email alert cannot be sent.
+
 ## Schedule
 
 GitHub Actions cannot express "last day of month" directly in cron. The workflow wakes up at 17:00 on days 28 to 31 and runs only when tomorrow is the first day of a new month.

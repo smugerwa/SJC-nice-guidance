@@ -148,6 +148,7 @@ python -m nice_guidance_monitor.mhra_cli --config config.json --week-ending "202
 - If a linked page or PDF cannot be accessed, the item is marked `source_incomplete`.
 - If Google Drive creation is not configured, the Markdown and DOCX remain in `outputs` and the completion summary says Google Drive was skipped.
 - If native Google Doc creation fails, the Markdown and DOCX remain available locally and the completion summary should record the error for manual follow-up.
+- If `require_email_notification` is true and SMTP email fails, the cloud run fails visibly after printing the completion summary.
 - If no `OPENAI_API_KEY` is available, the workflow uses a conservative fallback analysis and clearly marks the need for clinician review.
 
 ## Sample Output

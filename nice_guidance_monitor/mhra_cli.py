@@ -108,6 +108,8 @@ def main() -> None:
         summary["email_notification_error"] = str(exc)
 
     print(json.dumps(summary, indent=2))
+    if config.get("require_email_notification") and summary.get("email_notification_error"):
+        raise SystemExit("Email notification failed; see completion summary above.")
 
 
 if __name__ == "__main__":
