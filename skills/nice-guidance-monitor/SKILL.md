@@ -74,9 +74,13 @@ Include items with a realistic UK primary care interface:
 Move to appendix:
 
 - specialist tertiary-only drugs or procedures with no routine GP action
+- specialist-only technology appraisals where the only action is an NHS England/commissioner funding mandate
+- oncology drugs, advanced cancer therapies, tertiary procedures or hospital-only treatments unless there is a concrete GP prescribing, monitoring, referral, diagnostic, safety-netting, patient-advice or shared-care action
 - terminated appraisals
 - duplicate/legacy guidance where the action is already captured under a newer item
 - administrative-only updates unless the standing guidance is highly relevant to primary care
+
+Do not include an item in the main clinical meeting brief merely because clinicians may need "awareness". Awareness-only specialist items belong in Appendix A. The visible report should contain only items that help a GP practice decide what to change, discuss, audit, brief, prescribe, monitor, refer, code, safety-net, or communicate to patients.
 
 ## Writing Standard
 

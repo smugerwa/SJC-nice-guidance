@@ -1,9 +1,6 @@
 name: NICE Guidance Monthly Review
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       month:

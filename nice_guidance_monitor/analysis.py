@@ -41,6 +41,11 @@ def analyse_item(item: dict, config: dict) -> dict:
     source_urls array;
     source_incomplete boolean.
 
+    Strict primary-care inclusion rule:
+    Include an item in the main report only if it creates a concrete UK primary care action or decision, such as a GP/nurse/pharmacist prescribing change, monitoring requirement, referral/pathway change, diagnostic threshold, safety-netting advice, patient communication change, care-navigation instruction, template/SOP update, audit or staff briefing.
+    Do not include specialist-only cancer drugs, tertiary procedures, hospital-only treatments, or NHS commissioning/funding mandates in the main report just because they are NICE guidance. Put them in the appendix unless the source gives a specific primary care action beyond awareness/referral onward.
+    Do not classify NHS England funding requirements as GP practice actions.
+
     Item metadata:
     {json.dumps(item, ensure_ascii=False)[:5000]}
 
@@ -64,6 +69,7 @@ def analyse_item(item: dict, config: dict) -> dict:
     if not result.get("key_clinical_points_by_heading"):
         result["key_clinical_points_by_heading"] = _clinical_points_by_heading_from_source(item)
     result["raw_item"] = item
+    result = _apply_primary_care_gate(result, item)
     return result
 
 
@@ -158,7 +164,7 @@ def fallback_analysis(item: dict, config: dict) -> dict:
             "reason": "Potential primary care workflow impact; confirm against full NICE recommendations.",
             "meeting_note_wording": f"{ref}: review NICE update and confirm whether local protocol, prescribing or referral pathway changes are needed.",
         }]
-    return {
+    result = {
         "included": included,
         "exclusion_reason": "" if included else reason,
         "guidance_identification": {
@@ -203,6 +209,99 @@ def fallback_analysis(item: dict, config: dict) -> dict:
         "source_incomplete": item.get("source_incomplete", False),
         "raw_item": item,
     }
+    return _apply_primary_care_gate(result, item)
+
+
+def _apply_primary_care_gate(result: dict, item: dict) -> dict:
+    """Keep the visible report tightly focused on primary care action.
+
+    The LLM can over-weight legal/NHS funding language in specialist NICE
+    appraisals. This deterministic pass prevents specialist-only items from
+    appearing in the main meeting brief unless there is a concrete GP practice
+    interface.
+    """
+    ident = result.setdefault("guidance_identification", {})
+    title = ident.get("title") or item.get("title", "")
+    ref = ident.get("nice_reference") or item.get("reference", "")
+    guidance_type = (ident.get("guidance_type") or item.get("guidance_type", "")).lower()
+    haystack = " ".join([
+        title,
+        ref,
+        guidance_type,
+        result.get("clinical_brief", {}).get("what_changed", ""),
+        result.get("clinical_brief", {}).get("practice_implication", ""),
+        " ".join(result.get("clinical_brief", {}).get("key_takeaways", []) or []),
+        " ".join(result.get("key_clinical_points", []) or []),
+    ]).lower()
+
+    def exclude(reason: str, score: int = 1) -> dict:
+        result["included"] = False
+        result["exclusion_reason"] = reason
+        result.setdefault("relevance", {})["score"] = min(int(result.get("relevance", {}).get("score", score) or score), score)
+        result.setdefault("relevance", {})["rationale"] = reason
+        result["required_actions"] = []
+        result["recommended_communication"] = {
+            "gp_meeting": "",
+            "nurse_pharmacist_update": "",
+            "admin_care_navigation_update": "",
+        }
+        return result
+
+    explicit_include_refs = {"NG12", "NG23", "NG198", "QS18", "HTG712", "HTG776", "TA1148"}
+    explicit_exclude_refs = {"TA1144", "TA1145", "TA1146", "TA1147", "TA1149", "HTG777", "CG122"}
+    if ref in explicit_include_refs:
+        return result
+    if ref in explicit_exclude_refs:
+        if ref == "CG122":
+            return exclude("Duplicate or legacy ovarian cancer guidance; primary care action is captured under NG12 and QS18.", 0)
+        if ref == "TA1144":
+            return exclude("Terminated appraisal or no actionable NICE recommendation for routine primary care.", 0)
+        return exclude("Specialist-led guidance with no concrete routine UK primary care practice action.", 1)
+
+    specialist_terms = (
+        "multiple myeloma", "astrocytoma", "oligodendroglioma", "glioma",
+        "gastrointestinal stromal tumour", "gastrointestinal stromal tumor",
+        "head and neck squamous cell carcinoma", "squamous cell carcinoma",
+        "advanced cancer", "metastatic", "neoadjuvant", "adjuvant",
+        "chemotherapy", "immunotherapy", "kinase inhibitor", "bortezomib",
+        "pembrolizumab", "ripretinib", "vorasidenib", "belantamab",
+        "embolisation", "intracranial", "cerebrospinal fluid",
+    )
+    primary_care_action_terms = (
+        "primary care", "general practice", "gp", "community pharmacy",
+        "prescribing", "prescribe", "monitor", "blood test", "serum",
+        "referral criteria", "suspected cancer", "safety-net", "safety net",
+        "diagnostic threshold", "direct-access", "template", "sop",
+        "patient advice", "care navigation", "review at", "formulary",
+        "shared care", "ca125", "ultrasound", "hrt", "acne", "menopause",
+        "spirometry", "asthma", "copd", "hyperkalaemia", "low back pain",
+    )
+    funding_only_terms = (
+        "nhs england is required to fund",
+        "must fund",
+        "within 90 days",
+        "commissioners",
+        "funding mandate",
+        "legal requirement to fund",
+    )
+
+    has_specialist_signal = any(term in haystack for term in specialist_terms)
+    has_primary_care_action = any(term in haystack for term in primary_care_action_terms)
+    has_funding_only_signal = any(term in haystack for term in funding_only_terms)
+
+    if "technology appraisal" in guidance_type and has_specialist_signal:
+        return exclude("Specialist technology appraisal with no concrete routine primary care action; listed for awareness only.", 1)
+    if "interventional" in guidance_type and not has_primary_care_action:
+        return exclude("Specialist interventional procedure guidance with no routine primary care practice change.", 1)
+    if has_funding_only_signal and not has_primary_care_action:
+        return exclude("NHS commissioning/funding requirement only; no concrete GP practice action identified.", 1)
+
+    score = int(result.get("relevance", {}).get("score", 0) or 0)
+    include_min = 3
+    if score < include_min:
+        return exclude(result.get("exclusion_reason") or "Low primary care relevance; awareness only.", score)
+
+    return result
 
 
 def _clinical_points_from_source(item: dict, text: str) -> list[str]:
