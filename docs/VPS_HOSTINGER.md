@@ -12,16 +12,30 @@ hosted automation platform is involved, and nothing has to stay signed in.
 | NICE guidance monthly review | `sjc-nice-monthly.timer` | Last day of each month, 17:00 | The calendar month that is ending |
 | MHRA alerts weekly review | `sjc-mhra-weekly.timer` | Every Monday, 08:00 | The previous seven days |
 
-Times use the VPS system timezone, which `deploy/install.sh` sets to
-`Europe/London` so the schedule follows GMT and BST without further work.
+Both timers name `Europe/London` in their own `OnCalendar` lines, so the schedule
+follows GMT and BST without the installer touching the system clock. That matters
+when the VPS also serves a website: changing the system timezone would shift
+nginx, PHP and MySQL log timestamps too.
 
 `OnCalendar=*-*~01` is systemd's "last day of the month", so no 28/29/30/31
 guard is needed. `Persistent=true` means a month is caught up after a reboot
 rather than skipped.
 
+A timezone inside `OnCalendar` needs systemd 252 or newer. Ubuntu 24.04 ships
+255, so it works out of the box. On Ubuntu 22.04 (systemd 249) remove the
+` Europe/London` suffix from both timer files and set the system timezone
+instead:
+
+```bash
+TIMEZONE=Europe/London bash deploy/install.sh
+```
+
 ## One-Time Setup
 
 You need a Hostinger VPS running Ubuntu 22.04 or 24.04 and SSH access as root.
+An existing web host is fine: the jobs open no ports, need no web server or
+database, and live under `/opt` with their own system user, clear of any control
+panel's stack. Take a snapshot first if the box is serving live sites.
 
 ```bash
 ssh root@YOUR_VPS_IP
@@ -32,10 +46,14 @@ cd /root/sjc-nice-guidance
 bash deploy/install.sh
 ```
 
+`deploy/` only exists on branches that carry the VPS hosting layer. If
+`bash: deploy/install.sh: No such file or directory` appears, the clone is on a
+branch without it; `git checkout` the right branch and try again.
+
 `install.sh` is safe to re-run. It:
 
 - installs Python, `git`, `rsync` and `tzdata`
-- sets the system timezone
+- leaves the system timezone alone unless you set `TIMEZONE`
 - creates the unprivileged `sjcguidance` service user
 - syncs the project to `/opt/sjc-guidance`, never overwriting `.env`,
   `config.json`, `.google_token.json` or `outputs/`
@@ -46,7 +64,7 @@ bash deploy/install.sh
 Override the defaults if you want a different location or user:
 
 ```bash
-APP_DIR=/srv/guidance APP_USER=guidance TIMEZONE=Europe/London sudo -E bash deploy/install.sh
+APP_DIR=/srv/guidance APP_USER=guidance sudo -E bash deploy/install.sh
 ```
 
 ## Secrets
@@ -191,8 +209,13 @@ To make the timers use the container permanently, add
 ## Troubleshooting
 
 **A timer did not fire.** `systemctl list-timers 'sjc-*'` shows the next and last
-run. Check the timezone with `timedatectl`; if it is UTC the jobs run an hour off
-during BST.
+run. Those times are displayed in the system timezone, so on a UTC box the
+monthly run shows as 16:00 during BST and 17:00 during GMT. That is correct: the
+timer itself is pinned to `Europe/London`.
+
+**A timer will not load.** `systemctl status sjc-nice-monthly.timer` reporting an
+invalid calendar means systemd is older than 252 and cannot parse the timezone
+suffix. See the note under "What Runs, And When".
 
 **A run failed.** `journalctl -u sjc-nice-monthly.service -n 100 --no-pager`, then
 the matching file in `logs/`. The completion summary JSON is printed at the end

@@ -5,13 +5,19 @@
 #   sudo bash deploy/install.sh
 #
 # Override the defaults with environment variables:
-#   APP_DIR=/opt/sjc-guidance APP_USER=sjcguidance TIMEZONE=Europe/London sudo -E bash deploy/install.sh
+#   APP_DIR=/srv/guidance APP_USER=guidance sudo -E bash deploy/install.sh
+#
+# The system timezone is left alone by default, since this may be a shared host
+# running a website: the timers carry Europe/London in their own schedules. Set
+# TIMEZONE explicitly only if you want the whole box changed, which is needed on
+# systemd older than 252 (Ubuntu 22.04) where timers cannot name a timezone:
+#   TIMEZONE=Europe/London sudo -E bash deploy/install.sh
 
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/sjc-guidance}"
 APP_USER="${APP_USER:-sjcguidance}"
-TIMEZONE="${TIMEZONE:-Europe/London}"
+TIMEZONE="${TIMEZONE:-}"
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -24,8 +30,13 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq python3 python3-venv python3-pip git ca-certificates tzdata rsync
 
-echo "==> Setting the system timezone to $TIMEZONE"
-timedatectl set-timezone "$TIMEZONE" || echo "    Could not set timezone; timers will use the current system timezone."
+if [[ -n "$TIMEZONE" ]]; then
+  echo "==> Setting the system timezone to $TIMEZONE"
+  timedatectl set-timezone "$TIMEZONE" || echo "    Could not set the timezone; leaving it unchanged."
+else
+  echo "==> Leaving the system timezone unchanged ($(timedatectl show -p Timezone --value 2>/dev/null || echo unknown))"
+  echo "    The timers name Europe/London in their own schedules."
+fi
 
 if ! id -u "$APP_USER" >/dev/null 2>&1; then
   echo "==> Creating service user $APP_USER"

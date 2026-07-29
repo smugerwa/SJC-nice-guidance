@@ -3,9 +3,11 @@ Description=Run the NICE guidance review on the last day of each month
 Documentation=https://github.com/smugerwa/sjc-nice-guidance
 
 [Timer]
-# "*-*~01" is the last day of every month, whatever its length. Times are in the
-# VPS system timezone, which install.sh sets to Europe/London.
-OnCalendar=*-*~01 17:00:00
+# "*-*~01" is the last day of every month, whatever its length. The explicit
+# timezone means the schedule follows GMT and BST without changing the system
+# clock, which matters when the VPS also serves a website. Needs systemd 252+;
+# Ubuntu 22.04 ships 249, so drop the suffix there and set the system timezone.
+OnCalendar=*-*~01 17:00:00 Europe/London
 # Catch up after a reboot or a suspended VPS instead of skipping the month.
 Persistent=true
 # Spread load away from the exact minute.
