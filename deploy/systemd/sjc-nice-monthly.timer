@@ -1,0 +1,16 @@
+[Unit]
+Description=Run the NICE guidance review on the last day of each month
+Documentation=https://github.com/smugerwa/sjc-nice-guidance
+
+[Timer]
+# "*-*~01" is the last day of every month, whatever its length. Times are in the
+# VPS system timezone, which install.sh sets to Europe/London.
+OnCalendar=*-*~01 17:00:00
+# Catch up after a reboot or a suspended VPS instead of skipping the month.
+Persistent=true
+# Spread load away from the exact minute.
+RandomizedDelaySec=10m
+Unit=sjc-nice-monthly.service
+
+[Install]
+WantedBy=timers.target

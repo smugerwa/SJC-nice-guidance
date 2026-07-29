@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# Provision this project on a fresh Hostinger VPS (Ubuntu 22.04 or 24.04).
+#
+# Run as root from a clone of the repository:
+#   sudo bash deploy/install.sh
+#
+# Override the defaults with environment variables:
+#   APP_DIR=/opt/sjc-guidance APP_USER=sjcguidance TIMEZONE=Europe/London sudo -E bash deploy/install.sh
+
+set -euo pipefail
+
+APP_DIR="${APP_DIR:-/opt/sjc-guidance}"
+APP_USER="${APP_USER:-sjcguidance}"
+TIMEZONE="${TIMEZONE:-Europe/London}"
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if [[ "$(id -u)" -ne 0 ]]; then
+  echo "Run this script as root: sudo bash deploy/install.sh" >&2
+  exit 1
+fi
+
+echo "==> Installing system packages"
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+apt-get install -y -qq python3 python3-venv python3-pip git ca-certificates tzdata rsync
+
+echo "==> Setting the system timezone to $TIMEZONE"
+timedatectl set-timezone "$TIMEZONE" || echo "    Could not set timezone; timers will use the current system timezone."
+
+if ! id -u "$APP_USER" >/dev/null 2>&1; then
+  echo "==> Creating service user $APP_USER"
+  useradd --system --create-home --home-dir "/home/$APP_USER" --shell /usr/sbin/nologin "$APP_USER"
+fi
+
+echo "==> Syncing the project into $APP_DIR"
+mkdir -p "$APP_DIR"
+if [[ "$SOURCE_DIR" != "$APP_DIR" ]]; then
+  # Never overwrite live secrets, config or generated reports.
+  rsync -a --delete \
+    --exclude '.git/' \
+    --exclude '.venv/' \
+    --exclude '.deps/' \
+    --exclude 'outputs/' \
+    --exclude 'logs/' \
+    --exclude '.locks/' \
+    --exclude '.env' \
+    --exclude 'config.json' \
+    --exclude '.google_token.json' \
+    "$SOURCE_DIR"/ "$APP_DIR"/
+fi
+mkdir -p "$APP_DIR/outputs" "$APP_DIR/logs" "$APP_DIR/.locks"
+
+echo "==> Creating the virtualenv and installing dependencies"
+if [[ ! -x "$APP_DIR/.venv/bin/python" ]]; then
+  python3 -m venv "$APP_DIR/.venv"
+fi
+"$APP_DIR/.venv/bin/python" -m pip install --upgrade pip --quiet
+"$APP_DIR/.venv/bin/python" -m pip install -r "$APP_DIR/requirements.txt" --quiet
+
+if [[ ! -f "$APP_DIR/config.json" ]]; then
+  echo "==> Seeding config.json from config.vps.json"
+  cp "$APP_DIR/config.vps.json" "$APP_DIR/config.json"
+fi
+
+if [[ ! -f "$APP_DIR/.env" ]]; then
+  echo "==> Seeding .env from .env.example (fill in the secrets before the first run)"
+  cp "$APP_DIR/.env.example" "$APP_DIR/.env"
+fi
+
+chmod +x "$APP_DIR"/deploy/*.sh
+chmod 600 "$APP_DIR/.env"
+[[ -f "$APP_DIR/.google_token.json" ]] && chmod 600 "$APP_DIR/.google_token.json"
+chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+
+echo "==> Installing systemd units"
+for unit in "$APP_DIR"/deploy/systemd/*.service "$APP_DIR"/deploy/systemd/*.timer; do
+  name="$(basename "$unit")"
+  sed -e "s#/opt/sjc-guidance#$APP_DIR#g" \
+      -e "s#sjcguidance#$APP_USER#g" \
+      "$unit" > "/etc/systemd/system/$name"
+done
+
+systemctl daemon-reload
+systemctl enable --now sjc-nice-monthly.timer sjc-mhra-weekly.timer
+
+cat <<EOF
+
+Done. Next steps:
+
+  1. Add your secrets:            sudo -u $APP_USER nano $APP_DIR/.env
+  2. Check the practice settings: sudo -u $APP_USER nano $APP_DIR/config.json
+  3. Copy the Google token over:  sudo install -o $APP_USER -g $APP_USER -m 600 .google_token.json $APP_DIR/.google_token.json
+  4. Offline smoke test:
+       sudo -u $APP_USER $APP_DIR/deploy/run_monthly.sh --month "April 2026" \\
+         --sample-data data/sample_april_2026_sources.json --no-llm --no-google
+  5. Confirm the schedule:        systemctl list-timers 'sjc-*'
+
+EOF

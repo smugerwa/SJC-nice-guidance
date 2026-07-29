@@ -36,27 +36,29 @@ For each included NICE item, provide:
 
 Keep detailed source extraction in JSON or an audit log, not in the readable report.
 
-## DOCX Presentation Standard
+## Document Presentation Standard
 
-The DOCX report should look like a polished clinical governance document, not exported Markdown.
+The DOCX, HTML and Google Doc should look like a polished clinical governance document, not exported Markdown. All three share one house style, defined in code at `nice_guidance_monitor/house_style.py`. Read those constants before changing any presentation code, and change them there rather than in a single renderer.
 
-Use:
+The house style is:
 
-- Main body font: Calibri, 12 pt.
-- Heading font: Calibri.
-- Heading colour/accent: navy blue, preferably `#002060`.
-- Heading hierarchy: large clear H1 headings, smaller H2/H3 headings, all bold where appropriate.
-- Tables for action dashboards, meeting items, appendices and source lists.
-- Clean table header shading in a pale navy tint.
+- Body font Calibri, 10.5 pt, text `#262626`.
+- Document title 18 pt bold in `#1F3864`, left-aligned, over a hairline rule.
+- A mid-blue `#1F6FB2` descriptive subtitle line, then the practice name in bold navy.
+- Section headings 12.5 pt bold in `#1F6FB2`, each preceded by a full-width hairline rule; sub-headings bold navy `#1F3864`.
+- A borderless metadata table with alternating `#EAF1F8` banding and bold navy labels in the first column.
+- Data tables with a `#DCE6F1` shaded header, banded rows, faint `#C9D6E4` row rules and no outer grid.
+- Blue bullet and number glyphs.
+- A small grey footer with the document label on the left and a live page number on the right.
 - Real Word bold text and real Word headings, not Markdown markers.
 - No visible asterisks, pipe-table text, raw Markdown syntax, or unformatted URLs embedded in body paragraphs where a table is more suitable.
 
 Before handoff, structurally verify:
 
-- body text is Calibri 12,
-- headings are navy,
-- tables are real Word tables,
+- body and heading fonts, sizes and colours come from `house_style.py`,
+- tables are real Word tables, banded, with no outer grid,
 - visible text contains no `**` Markdown artefacts,
+- the footer numbers pages,
 - the report remains concise and easy to scan.
 
 ## Inclusion Rules
@@ -95,15 +97,22 @@ Write for clinicians who need to scan the report before a meeting.
 
 ## Automation Workflow
 
-In this workspace, the runnable workflow is:
+The automation is self-hosted on a Hostinger VPS, scheduled by the
+`sjc-nice-monthly.timer` systemd timer on the last day of each month. Setup is in
+`docs/VPS_HOSTINGER.md`.
+
+On the VPS:
+
+```bash
+cd /opt/sjc-guidance
+sudo -u sjcguidance ./deploy/run_monthly.sh --current-month
+sudo -u sjcguidance ./deploy/run_monthly.sh --month "April 2026" --no-google
+```
+
+From a Windows workstation, for ad-hoc runs:
 
 ```powershell
 .\run_monthly.ps1 -CurrentMonth
-```
-
-For a manual test month:
-
-```powershell
 .\run_monthly.ps1 -Month "April 2026" -NoGoogle
 ```
 
@@ -125,7 +134,7 @@ Preferred output:
 
 - Create a new native Google Doc in the configured Google Drive destination folder.
 - Build the report from the structured analysis data, not from Markdown paste or DOCX upload.
-- Apply Google Docs formatting directly: Calibri 12 body text, navy headings, bold section labels and real Google Docs tables for the action dashboard, meeting items, appendices and source list.
+- Apply Google Docs formatting directly from the shared house style: Calibri body text, blue section headings, bold navy section labels, a banded metadata table and real Google Docs tables for the action dashboard, meeting items, appendices and source list.
 - Return the Google Doc link in the completion summary.
 
 Credential requirements:

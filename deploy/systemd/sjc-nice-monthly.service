@@ -1,0 +1,29 @@
+[Unit]
+Description=NICE guidance monthly governance review
+Documentation=https://github.com/smugerwa/sjc-nice-guidance
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=sjcguidance
+Group=sjcguidance
+WorkingDirectory=/opt/sjc-guidance
+EnvironmentFile=-/opt/sjc-guidance/.env
+# The timer fires on the last day of the month, so review the month just ending.
+ExecStart=/opt/sjc-guidance/deploy/run_monthly.sh --current-month
+TimeoutStartSec=3h
+Nice=10
+
+# The job only needs to read the repo and write outputs and logs.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/sjc-guidance
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,29 @@
+# Optional container route. Scheduling stays with the host systemd timers, which
+# call deploy/run_*.sh with SJC_RUNTIME=docker; this file only defines how a
+# single run is executed.
+#
+#   cd /opt/sjc-guidance
+#   docker compose -f deploy/docker-compose.yml build
+#   SJC_RUNTIME=docker deploy/run_monthly.sh --current-month
+
+services:
+  monitor:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: sjc-guidance-monitor:latest
+    working_dir: /app
+    environment:
+      TZ: Europe/London
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_OAUTH_TOKEN_JSON: ${GOOGLE_OAUTH_TOKEN_JSON:-}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    volumes:
+      # Secrets and settings stay on the host.
+      - ../config.json:/app/config.json:ro
+      - ../.google_token.json:/app/.google_token.json
+      # Generated reports land in the host outputs directory.
+      - ../outputs:/app/outputs
+    restart: "no"
