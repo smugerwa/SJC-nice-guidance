@@ -30,6 +30,18 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq python3 python3-venv python3-pip git ca-certificates tzdata rsync
 
+# A timezone inside OnCalendar needs systemd 252+. Older releases (Ubuntu 22.04
+# ships 249) cannot parse it and would refuse to load the timers, so on those the
+# suffix is stripped below and the system timezone is set instead.
+SYSTEMD_VERSION="$(systemctl --version 2>/dev/null | head -1 | awk '{print $2}')"
+STRIP_TIMER_TIMEZONE=0
+if [[ "$SYSTEMD_VERSION" =~ ^[0-9]+$ ]] && (( SYSTEMD_VERSION < 252 )); then
+  STRIP_TIMER_TIMEZONE=1
+  echo "==> systemd $SYSTEMD_VERSION cannot parse a timezone in OnCalendar"
+  echo "    Removing the suffix from the timers and using the system timezone instead."
+  TIMEZONE="${TIMEZONE:-Europe/London}"
+fi
+
 if [[ -n "$TIMEZONE" ]]; then
   echo "==> Setting the system timezone to $TIMEZONE"
   timedatectl set-timezone "$TIMEZONE" || echo "    Could not set the timezone; leaving it unchanged."
@@ -86,9 +98,11 @@ chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 echo "==> Installing systemd units"
 for unit in "$APP_DIR"/deploy/systemd/*.service "$APP_DIR"/deploy/systemd/*.timer; do
   name="$(basename "$unit")"
-  sed -e "s#/opt/sjc-guidance#$APP_DIR#g" \
-      -e "s#sjcguidance#$APP_USER#g" \
-      "$unit" > "/etc/systemd/system/$name"
+  sed_args=(-e "s#/opt/sjc-guidance#$APP_DIR#g" -e "s#sjcguidance#$APP_USER#g")
+  if [[ $STRIP_TIMER_TIMEZONE -eq 1 ]]; then
+    sed_args+=(-e "s#^\(OnCalendar=.*\) Europe/London\$#\1#")
+  fi
+  sed "${sed_args[@]}" "$unit" > "/etc/systemd/system/$name"
 done
 
 systemctl daemon-reload

@@ -10,7 +10,9 @@ User=sjcguidance
 Group=sjcguidance
 WorkingDirectory=/opt/sjc-guidance
 EnvironmentFile=-/opt/sjc-guidance/.env
-ExecStart=/opt/sjc-guidance/deploy/run_mhra_weekly.sh
+# Review the seven days ending yesterday, so the window is complete and
+# consecutive runs leave no unreviewed hours.
+ExecStart=/opt/sjc-guidance/deploy/run_mhra_weekly.sh --previous-week
 TimeoutStartSec=2h
 Nice=10
 

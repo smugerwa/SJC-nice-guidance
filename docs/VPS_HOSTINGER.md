@@ -10,7 +10,7 @@ hosted automation platform is involved, and nothing has to stay signed in.
 | Job | Timer | Fires | Reviews |
 | --- | --- | --- | --- |
 | NICE guidance monthly review | `sjc-nice-monthly.timer` | Last day of each month, 17:00 | The calendar month that is ending |
-| MHRA alerts weekly review | `sjc-mhra-weekly.timer` | Every Monday, 08:00 | The previous seven days |
+| MHRA alerts weekly review | `sjc-mhra-weekly.timer` | Every Monday, 08:00 | The seven days ending the previous day |
 
 Both timers name `Europe/London` in their own `OnCalendar` lines, so the schedule
 follows GMT and BST without the installer touching the system clock. That matters
@@ -21,14 +21,18 @@ nginx, PHP and MySQL log timestamps too.
 guard is needed. `Persistent=true` means a month is caught up after a reboot
 rather than skipped.
 
-A timezone inside `OnCalendar` needs systemd 252 or newer. Ubuntu 24.04 ships
-255, so it works out of the box. On Ubuntu 22.04 (systemd 249) remove the
-` Europe/London` suffix from both timer files and set the system timezone
-instead:
+The weekly job reviews the seven days ending *yesterday*, via `--previous-week`.
+A window ending today is only complete at midnight: an 08:00 run cannot see
+anything published later that day, and the next window would start tomorrow, so
+those hours would never be reviewed. Ending yesterday keeps consecutive runs
+contiguous and entirely in the past.
 
-```bash
-TIMEZONE=Europe/London bash deploy/install.sh
-```
+A timezone inside `OnCalendar` needs systemd 252 or newer. Ubuntu 24.04 ships
+255, so it works out of the box. On Ubuntu 22.04 (systemd 249) the installer
+detects the older version, strips the suffix from the timers and sets the system
+timezone to `Europe/London` instead, so the same `bash deploy/install.sh` works
+on both. Override the timezone it picks with `TIMEZONE=...` if the box should
+use something else.
 
 ## One-Time Setup
 
@@ -53,7 +57,8 @@ branch without it; `git checkout` the right branch and try again.
 `install.sh` is safe to re-run. It:
 
 - installs Python, `git`, `rsync` and `tzdata`
-- leaves the system timezone alone unless you set `TIMEZONE`
+- leaves the system timezone alone unless you set `TIMEZONE`, or systemd is too
+  old to carry a timezone in the timers
 - creates the unprivileged `sjcguidance` service user
 - syncs the project to `/opt/sjc-guidance`, never overwriting `.env`,
   `config.json`, `.google_token.json` or `outputs/`
@@ -144,7 +149,8 @@ sudo -u sjcguidance ./deploy/run_monthly.sh --month "2026-04"
 sudo -u sjcguidance ./deploy/run_monthly.sh --no-google --no-llm
 
 # Weekly MHRA
-sudo -u sjcguidance ./deploy/run_mhra_weekly.sh
+sudo -u sjcguidance ./deploy/run_mhra_weekly.sh                  # 7 days ending today
+sudo -u sjcguidance ./deploy/run_mhra_weekly.sh --previous-week   # what the timer runs
 sudo -u sjcguidance ./deploy/run_mhra_weekly.sh --week-ending 2026-04-26
 sudo -u sjcguidance ./deploy/run_mhra_weekly.sh --days 21 --no-google
 ```

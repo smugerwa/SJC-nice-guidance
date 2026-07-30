@@ -591,7 +591,9 @@ def _clean_docx_text(text: str, keep_markup: bool = False) -> str:
         "â€™": "'",
         "â€˜": "'",
         "â€œ": '"',
-        "â€": '"',
+        # The full closing-quote sequence, not the bare "â€" prefix, which would
+        # leave the trailing \x9d behind in the output.
+        "â€\x9d": '"',
         "Â": "",
     }
     for bad, good in replacements.items():
