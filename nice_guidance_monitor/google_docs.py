@@ -6,9 +6,26 @@ import json
 from pathlib import Path
 
 
-NAVY = {"color": {"rgbColor": {"red": 0.0, "green": 0.125, "blue": 0.376}}}
-BLACK = {"color": {"rgbColor": {"red": 0.137, "green": 0.137, "blue": 0.137}}}
-PALE_NAVY = {"color": {"rgbColor": {"red": 0.851, "green": 0.886, "blue": 0.953}}}
+from . import house_style as hs
+from .report import report_meta_pairs, report_subtitle
+
+
+def _color(hex_value: str) -> dict:
+    return {"color": {"rgbColor": hs.hex_to_rgb_floats(hex_value)}}
+
+
+def _pt(size: float) -> dict:
+    return {"magnitude": size, "unit": "PT"}
+
+
+# Google Docs equivalents of the shared house style.
+NAVY = _color(hs.TITLE_NAVY)
+HEADING_BLUE = _color(hs.HEADING_BLUE)
+SUBHEAD_NAVY = _color(hs.SUBHEAD_NAVY)
+BLACK = _color(hs.BODY_TEXT)
+PALE_NAVY = _color(hs.TABLE_HEAD)
+BAND_BLUE = _color(hs.TABLE_BAND)
+WHITE = _color("FFFFFF")
 
 
 def create_native_google_doc_report(report: dict, title: str, config: dict) -> dict:
@@ -160,8 +177,6 @@ def _google_services_from_service_account():
 def _build_native_doc_content(report: dict, title: str) -> dict:
     source_label = report.get("source_label", "NICE")
     report_title = report.get("report_title", f"{source_label} Guidance Monthly Review")
-    period_label = report.get("period_label", "Reporting month")
-    prepared_by = report.get("prepared_by", f"{source_label} Guidance Monitoring Agent")
     included = [i for i in report["items_reviewed"] if i.get("included")]
     excluded = [i for i in report["items_reviewed"] if not i.get("included")]
     included = sorted(included, key=lambda item: item.get("relevance", {}).get("score", 0), reverse=True)
@@ -171,6 +186,8 @@ def _build_native_doc_content(report: dict, title: str) -> dict:
     low_relevance = [i for i in included if i.get("relevance", {}).get("score", 0) < 3]
 
     lines: list[str] = []
+    title_lines: set[str] = set()
+    subtitle_lines: set[str] = set()
     heading_lines: set[str] = set()
     item_heading_lines: set[str] = set()
     label_lines: set[str] = set()
@@ -179,26 +196,37 @@ def _build_native_doc_content(report: dict, title: str) -> dict:
     def add(line: object = "", kind: str | None = None) -> None:
         cleaned = _clean_doc_text(line)
         lines.append(cleaned)
-        if kind == "heading":
+        if kind == "title":
+            title_lines.add(cleaned)
+        elif kind == "subtitle":
+            subtitle_lines.add(cleaned)
+        elif kind == "heading":
             heading_lines.add(cleaned)
         elif kind == "item":
             item_heading_lines.add(cleaned)
         elif kind == "label":
             label_lines.add(cleaned)
 
-    def add_table(marker: str, rows: list[list[object]]) -> None:
+    def add_table(marker: str, rows: list[list[object]], header: bool = True, label_column: bool = False) -> None:
         add(marker)
-        tables.append({"marker": marker, "rows": [[_clean_doc_text(cell) for cell in row] for row in rows]})
+        tables.append({
+            "marker": marker,
+            "rows": [[_clean_doc_text(cell) for cell in row] for row in rows],
+            "header": header,
+            "label_column": label_column,
+        })
 
+    # Title block: navy title, blue descriptive subtitle, bold practice line, banded meta table.
+    add(f"{report_title} - {report['month_label']}", "title")
+    add(report_subtitle(report), "subtitle")
     add(report["practice_name"], "item")
-    add(report_title, "heading")
-    add(f"{period_label}: {report['month_label']}")
     add()
-    add(title, "heading")
-    add(f"Date generated: {report['date_generated']}")
-    add(f"Prepared by: {prepared_by}")
-    add(f"Reviewed by: {report.get('reviewer') or '[INSERT NAME/ROLE]'}")
-    add("Clinical governance document - for internal use")
+    add_table(
+        "[[TABLE_META]]",
+        [[label, value] for label, value in report_meta_pairs(report)],
+        header=False,
+        label_column=True,
+    )
     add()
 
     add("Executive Summary", "heading")
@@ -301,7 +329,9 @@ def _build_native_doc_content(report: dict, title: str) -> dict:
     return {
         "text": text,
         "tables": tables,
-        "style_requests": _native_content_style_requests(text, heading_lines, item_heading_lines, label_lines),
+        "style_requests": _native_content_style_requests(
+            text, title_lines, subtitle_lines, heading_lines, item_heading_lines, label_lines
+        ),
     }
 
 
@@ -311,6 +341,8 @@ def _item_reference(ident: dict) -> str:
 
 def _native_content_style_requests(
     text: str,
+    title_lines: set[str],
+    subtitle_lines: set[str],
     heading_lines: set[str],
     item_heading_lines: set[str],
     label_lines: set[str],
@@ -324,18 +356,42 @@ def _native_content_style_requests(
         cursor += len(raw_line)
         if not line.strip():
             continue
-        if line in heading_lines:
+        if line in title_lines:
             requests.append(_text_style_request(
                 start,
                 end,
-                {"bold": True, "foregroundColor": NAVY, "fontSize": {"magnitude": 15, "unit": "PT"}},
+                {"bold": True, "foregroundColor": NAVY, "fontSize": _pt(hs.TITLE_SIZE)},
+                "bold,foregroundColor,fontSize",
+            ))
+        elif line in subtitle_lines:
+            requests.append(_text_style_request(
+                start,
+                end,
+                {"bold": True, "foregroundColor": HEADING_BLUE, "fontSize": _pt(hs.H1_SIZE)},
+                "bold,foregroundColor,fontSize",
+            ))
+        elif line in heading_lines:
+            requests.append(_text_style_request(
+                start,
+                end,
+                {"bold": True, "foregroundColor": HEADING_BLUE, "fontSize": _pt(hs.H1_SIZE)},
                 "bold,foregroundColor,fontSize",
             ))
         elif line in item_heading_lines:
-            requests.append(_text_style_request(start, end, {"bold": True, "foregroundColor": NAVY}, "bold,foregroundColor"))
+            requests.append(_text_style_request(
+                start,
+                end,
+                {"bold": True, "foregroundColor": SUBHEAD_NAVY, "fontSize": _pt(hs.H2_SIZE)},
+                "bold,foregroundColor,fontSize",
+            ))
         elif line in label_lines:
             label_end = start + len(line.split(":", 1)[0]) + 1
-            requests.append(_text_style_request(start, min(label_end, end), {"bold": True, "foregroundColor": NAVY}, "bold,foregroundColor"))
+            requests.append(_text_style_request(
+                start,
+                min(label_end, end),
+                {"bold": True, "foregroundColor": SUBHEAD_NAVY},
+                "bold,foregroundColor",
+            ))
     return requests
 
 
@@ -359,7 +415,14 @@ def _replace_table_markers(docs, document_id: str, text: str, tables: list[dict]
         document = docs.documents().get(documentId=document_id).execute()
         table_element = _find_table_element(document, start)
         if table_element:
-            _fill_google_table(docs, document_id, table_element, rows)
+            _fill_google_table(
+                docs,
+                document_id,
+                table_element,
+                rows,
+                header=table.get("header", True),
+                label_column=table.get("label_column", False),
+            )
 
 
 def _find_table_element(document: dict, target_index: int) -> dict | None:
@@ -369,7 +432,14 @@ def _find_table_element(document: dict, target_index: int) -> dict | None:
     return min(tables, key=lambda element: abs(element.get("startIndex", 0) - target_index))
 
 
-def _fill_google_table(docs, document_id: str, table_element: dict, rows: list[list[str]]) -> None:
+def _fill_google_table(
+    docs,
+    document_id: str,
+    table_element: dict,
+    rows: list[list[str]],
+    header: bool = True,
+    label_column: bool = False,
+) -> None:
     insert_requests = []
     table = table_element["table"]
     for row_index, row in enumerate(rows):
@@ -400,38 +470,64 @@ def _fill_google_table(docs, document_id: str, table_element: dict, rows: list[l
 
     table_start = table_element["startIndex"]
     table_end = table_element["endIndex"]
+    body_size = hs.META_SIZE if label_column else hs.TABLE_SIZE
     style_requests = [
         _text_style_request(
             table_start,
             table_end,
             {
-                "weightedFontFamily": {"fontFamily": "Calibri"},
-                "fontSize": {"magnitude": 10, "unit": "PT"},
+                "weightedFontFamily": {"fontFamily": hs.BODY_FONT},
+                "fontSize": _pt(body_size),
                 "foregroundColor": BLACK,
             },
             "weightedFontFamily,fontSize,foregroundColor",
-        ),
-        {
+        )
+    ]
+
+    def shade_row(row_index: int, color: dict) -> None:
+        style_requests.append({
             "updateTableCellStyle": {
                 "tableRange": {
                     "tableCellLocation": {
                         "tableStartLocation": {"index": table_start},
-                        "rowIndex": 0,
+                        "rowIndex": row_index,
                         "columnIndex": 0,
                     },
                     "rowSpan": 1,
                     "columnSpan": len(rows[0]),
                 },
-                "tableCellStyle": {"backgroundColor": PALE_NAVY},
+                "tableCellStyle": {"backgroundColor": color},
                 "fields": "backgroundColor",
             }
-        },
-    ]
+        })
 
-    for cell in table_element["table"]["tableRows"][0]["tableCells"]:
-        start = cell["content"][0]["startIndex"]
-        end = max(start + 1, cell["content"][-1]["endIndex"] - 1)
-        style_requests.append(_text_style_request(start, end, {"bold": True, "foregroundColor": NAVY}, "bold,foregroundColor"))
+    # Alternating pale-blue banding; a header row when the table has one.
+    for row_index in range(len(rows)):
+        if header and row_index == 0:
+            shade_row(row_index, PALE_NAVY)
+        elif (row_index % 2 == 1) if header else (row_index % 2 == 0):
+            shade_row(row_index, BAND_BLUE)
+        else:
+            shade_row(row_index, WHITE)
+
+    table_rows = table_element["table"]["tableRows"]
+    if header and table_rows:
+        for cell in table_rows[0]["tableCells"]:
+            start = cell["content"][0]["startIndex"]
+            end = max(start + 1, cell["content"][-1]["endIndex"] - 1)
+            style_requests.append(
+                _text_style_request(start, end, {"bold": True, "foregroundColor": NAVY}, "bold,foregroundColor")
+            )
+    if label_column:
+        for row in table_rows:
+            cells = row.get("tableCells", [])
+            if not cells:
+                continue
+            start = cells[0]["content"][0]["startIndex"]
+            end = max(start + 1, cells[0]["content"][-1]["endIndex"] - 1)
+            style_requests.append(
+                _text_style_request(start, end, {"bold": True, "foregroundColor": SUBHEAD_NAVY}, "bold,foregroundColor")
+            )
 
     docs.documents().batchUpdate(documentId=document_id, body={"requests": style_requests}).execute()
 
@@ -459,8 +555,8 @@ def _base_text_style_requests(text: str) -> list[dict]:
             1,
             len(text) + 1,
             {
-                "weightedFontFamily": {"fontFamily": "Calibri"},
-                "fontSize": {"magnitude": 12, "unit": "PT"},
+                "weightedFontFamily": {"fontFamily": hs.BODY_FONT},
+                "fontSize": _pt(hs.BODY_SIZE),
                 "foregroundColor": BLACK,
             },
             "weightedFontFamily,fontSize,foregroundColor",
@@ -493,17 +589,24 @@ def _base_text_style_requests(text: str) -> list[dict]:
         cursor += len(raw_line)
         if not line.strip():
             continue
-        if start == 1 or line in major_headings:
+        if start == 1:
             requests.append(_text_style_request(
                 start,
                 end,
-                {"bold": True, "foregroundColor": NAVY, "fontSize": {"magnitude": 15, "unit": "PT"}},
+                {"bold": True, "foregroundColor": NAVY, "fontSize": _pt(hs.TITLE_SIZE)},
+                "bold,foregroundColor,fontSize",
+            ))
+        elif line in major_headings:
+            requests.append(_text_style_request(
+                start,
+                end,
+                {"bold": True, "foregroundColor": HEADING_BLUE, "fontSize": _pt(hs.H1_SIZE)},
                 "bold,foregroundColor,fontSize",
             ))
         elif re.match(r"^((NG|CG|QS|TA|HTG|DG|IPG|MTG)\d+|EL\(\d{2}\)A/\d+|NatPSA/\d{4}/\d+/[A-Z]+|DSI/\d{4}/\d+|MHRA)\s+-\s+", line):
-            requests.append(_text_style_request(start, end, {"bold": True, "foregroundColor": NAVY}, "bold,foregroundColor"))
+            requests.append(_text_style_request(start, end, {"bold": True, "foregroundColor": SUBHEAD_NAVY}, "bold,foregroundColor"))
         elif any(line.startswith(label + ":") or line == label for label in section_labels):
-            requests.append(_text_style_request(start, end, {"bold": True, "foregroundColor": NAVY}, "bold,foregroundColor"))
+            requests.append(_text_style_request(start, end, {"bold": True, "foregroundColor": SUBHEAD_NAVY}, "bold,foregroundColor"))
     return requests
 
 

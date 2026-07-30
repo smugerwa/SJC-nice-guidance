@@ -11,6 +11,7 @@ from .mhra import MhraClient, load_sample_items
 from .mhra_analysis import analyse_item, fallback_analysis
 from .notify import send_completion_email
 from .report import build_docx_report, build_markdown_report
+from .report_html import build_html_report
 
 
 def parse_args() -> argparse.Namespace:
@@ -73,9 +74,11 @@ def main() -> None:
     json_path = out_dir / f"{title}.json"
     md_path = out_dir / f"{title}.md"
     docx_path = out_dir / f"{title}.docx"
+    html_path = out_dir / f"{title}.html"
 
     json_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     md_path.write_text(build_markdown_report(report), encoding="utf-8")
+    html_path.write_text(build_html_report(report), encoding="utf-8")
     build_docx_report(report, docx_path, config)
 
     google_doc = None
@@ -97,6 +100,7 @@ def main() -> None:
         "high_priority_actions": high_actions,
         "markdown": str(md_path),
         "docx": str(docx_path),
+        "html": str(html_path),
         "json": str(json_path),
         "google_doc": google_doc,
         "failures": failures,

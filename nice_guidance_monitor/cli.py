@@ -9,6 +9,7 @@ from .config import load_config, month_bounds
 from .nice import NiceClient, load_sample_items
 from .analysis import analyse_item, fallback_analysis
 from .report import build_markdown_report, build_docx_report
+from .report_html import build_html_report
 from .google_docs import create_native_google_doc_report
 from .notify import send_completion_email
 
@@ -66,9 +67,11 @@ def main() -> None:
     json_path = out_dir / f"{title}.json"
     md_path = out_dir / f"{title}.md"
     docx_path = out_dir / f"{title}.docx"
+    html_path = out_dir / f"{title}.html"
 
     json_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     md_path.write_text(build_markdown_report(report), encoding="utf-8")
+    html_path.write_text(build_html_report(report), encoding="utf-8")
     build_docx_report(report, docx_path, config)
 
     google_doc = None
@@ -90,6 +93,7 @@ def main() -> None:
         "high_priority_actions": high_actions,
         "markdown": str(md_path),
         "docx": str(docx_path),
+        "html": str(html_path),
         "json": str(json_path),
         "google_doc": google_doc,
         "failures": failures,

@@ -1,6 +1,8 @@
-# GitHub Cloud Run Setup
+# GitHub Cloud Run Setup (manual fallback)
 
-This project can run monthly in GitHub Actions and create the NICE review directly as a native Google Doc.
+The monthly schedule lives on the Hostinger VPS, in the `sjc-nice-monthly.timer` systemd timer. See `docs/VPS_HOSTINGER.md` for the primary setup.
+
+This workflow is kept as a manual fallback for when the VPS is unavailable. It has no schedule, so it cannot double-run against the VPS timer and produce two reports for the same month. Triggered by hand it runs the same code and creates the NICE review directly as a native Google Doc.
 
 ## Required Repository Secrets
 
@@ -51,13 +53,13 @@ Because the email alert is required, `config.cloud.json` sets:
 "require_email_notification": true
 ```
 
-This means future cloud runs fail visibly if the report is created but the email alert cannot be sent.
+This means runs fail visibly if the report is created but the email alert cannot be sent. The same applies on the VPS through `config.vps.json`.
 
 ## Schedule
 
-GitHub Actions cannot express "last day of month" directly in cron. The workflow wakes up at 17:00 on days 28 to 31 and runs only when tomorrow is the first day of a new month.
+There is no GitHub schedule. The last-day-of-month run is a systemd timer on the VPS, where `OnCalendar=*-*~01` expresses "last day of the month" directly.
 
-Manual runs are also available from:
+Manual runs are available from:
 
 `Actions > NICE Guidance Monthly Review > Run workflow`
 

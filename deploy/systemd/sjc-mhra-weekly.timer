@@ -1,0 +1,14 @@
+[Unit]
+Description=Run the MHRA alerts review every Monday morning
+Documentation=https://github.com/smugerwa/sjc-nice-guidance
+
+[Timer]
+# Monday 08:00 London time, covering the previous seven days. See the monthly
+# timer for why the timezone is explicit rather than taken from the system.
+OnCalendar=Mon 08:00:00 Europe/London
+Persistent=true
+RandomizedDelaySec=10m
+Unit=sjc-mhra-weekly.service
+
+[Install]
+WantedBy=timers.target
