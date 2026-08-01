@@ -8,6 +8,10 @@ from pathlib import Path
 
 
 def load_config(path: str) -> dict:
+    # Secrets live in .env (README contract). GitHub Actions injects real env
+    # vars, but local/VPS runs rely on this load; without it OPENAI_API_KEY,
+    # SMTP_* and GOOGLE_* silently appear unset and the run degrades.
+    _load_env()
     config_path = Path(path)
     if not config_path.exists():
         example = Path("config.example.json")
@@ -15,6 +19,14 @@ def load_config(path: str) -> dict:
             return json.loads(example.read_text(encoding="utf-8"))
         raise FileNotFoundError(f"Config file not found: {path}")
     return json.loads(config_path.read_text(encoding="utf-8"))
+
+
+def _load_env() -> None:
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    load_dotenv()
 
 
 def month_bounds(value: str | None, default: str = "previous") -> tuple[date, date, str]:
