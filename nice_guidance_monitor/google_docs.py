@@ -294,25 +294,28 @@ def _build_native_doc_content(report: dict, title: str) -> dict:
             add(f"- {point}")
         add("Practice Implication", "item")
         add(brief.get("practice_implication", ""))
-        add("Suggested Meeting Discussion", "item")
-        add(f"- {brief.get('meeting_discussion', '')}")
-        add("Suggested Action", "item")
-        add(f"- {brief.get('suggested_action', '')}")
+        if not report.get("concise_excluded"):
+            # Concise reports keep actions in the dashboard only.
+            add("Suggested Meeting Discussion", "item")
+            add(f"- {brief.get('meeting_discussion', '')}")
+            add("Suggested Action", "item")
+            add(f"- {brief.get('suggested_action', '')}")
 
     add()
-    add("Items For Clinical Meeting", "heading")
-    meeting_rows = [["Type", "Item", "Meeting prompt"]]
-    for item in clinically_relevant:
-        ident = item["guidance_identification"]
-        score = item.get("relevance", {}).get("score", 0)
-        category = "Decision" if score >= high_min else "Discussion"
-        meeting_rows.append([
-            category,
-            f"{_item_reference(ident)} - {ident.get('title')}",
-            item.get("clinical_brief", {}).get("meeting_discussion", ""),
-        ])
-    add_table("[[TABLE_MEETING_ITEMS]]", meeting_rows)
-    add()
+    if not report.get("concise_excluded"):
+        add("Items For Clinical Meeting", "heading")
+        meeting_rows = [["Type", "Item", "Meeting prompt"]]
+        for item in clinically_relevant:
+            ident = item["guidance_identification"]
+            score = item.get("relevance", {}).get("score", 0)
+            category = "Decision" if score >= high_min else "Discussion"
+            meeting_rows.append([
+                category,
+                f"{_item_reference(ident)} - {ident.get('title')}",
+                item.get("clinical_brief", {}).get("meeting_discussion", ""),
+            ])
+        add_table("[[TABLE_MEETING_ITEMS]]", meeting_rows)
+        add()
 
     if report.get("concise_excluded"):
         add(f"Reviewed And Not Relevant To {report['practice_name']}", "heading")
@@ -325,6 +328,8 @@ def _build_native_doc_content(report: dict, title: str) -> dict:
             if what:
                 add(what)
             add(f"Why not relevant: {item.get('exclusion_reason') or 'Low relevance to clinic services.'}", "label")
+            if ident.get("url"):
+                add(ident["url"])
         if not excluded and not low_relevance:
             add("None.")
         add()
@@ -342,14 +347,15 @@ def _build_native_doc_content(report: dict, title: str) -> dict:
         add_table("[[TABLE_APPENDIX_A]]", appendix_rows)
         add()
 
-    add(f"Appendix B: Main {source_label} Sources", "heading")
-    source_rows = [["Reference", "Guidance", "URL"]]
-    for item in report["items_reviewed"]:
-        ident = item.get("guidance_identification", {})
-        if ident.get("url"):
-            source_rows.append([_item_reference(ident), ident.get("title", ""), ident.get("url", "")])
-    add_table("[[TABLE_SOURCES]]", source_rows)
-    add()
+    if not report.get("concise_excluded"):
+        add(f"Appendix B: Main {source_label} Sources", "heading")
+        source_rows = [["Reference", "Guidance", "URL"]]
+        for item in report["items_reviewed"]:
+            ident = item.get("guidance_identification", {})
+            if ident.get("url"):
+                source_rows.append([_item_reference(ident), ident.get("title", ""), ident.get("url", "")])
+        add_table("[[TABLE_SOURCES]]", source_rows)
+        add()
 
     add("Actions Completed", "heading")
     add(

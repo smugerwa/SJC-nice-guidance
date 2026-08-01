@@ -100,34 +100,40 @@ def build_markdown_report(report: dict) -> str:
             "",
             brief.get("practice_implication", ""),
             "",
-            "#### Suggested meeting discussion",
-            "",
-            f"- {brief.get('meeting_discussion', '')}",
-            "",
-            "#### Suggested action",
-            "",
-            f"- {brief.get('suggested_action', '')}",
-            "",
         ]
+        if not report.get("concise_excluded"):
+            # Concise reports keep actions in the dashboard only; repeating
+            # them per item doubled the length for no extra information.
+            lines += [
+                "#### Suggested meeting discussion",
+                "",
+                f"- {brief.get('meeting_discussion', '')}",
+                "",
+                "#### Suggested action",
+                "",
+                f"- {brief.get('suggested_action', '')}",
+                "",
+            ]
 
-    lines += ["## Items for clinical meeting", ""]
-    discussion = []
-    decisions = []
-    awareness = []
-    for item in clinically_relevant:
-        ident = item["guidance_identification"]
-        score = item.get("relevance", {}).get("score", 0)
-        label = f"{_item_reference(ident)} - {ident.get('title')}: {item.get('clinical_brief', {}).get('meeting_discussion', '')}"
-        if score >= high_min:
-            decisions.append(label)
-        elif score >= 3:
-            discussion.append(label)
-        else:
-            awareness.append(label)
-    lines += ["**Items requiring discussion:**"] + ([f"- {x}" for x in discussion] or ["- None"])
-    lines += ["", "**Items requiring decision:**"] + ([f"- {x}" for x in decisions] or ["- None"])
-    lines += ["", "**Items for awareness only:**"] + ([f"- {x}" for x in awareness] or ["- None"])
-    lines.append("")
+    if not report.get("concise_excluded"):
+        lines += ["## Items for clinical meeting", ""]
+        discussion = []
+        decisions = []
+        awareness = []
+        for item in clinically_relevant:
+            ident = item["guidance_identification"]
+            score = item.get("relevance", {}).get("score", 0)
+            label = f"{_item_reference(ident)} - {ident.get('title')}: {item.get('clinical_brief', {}).get('meeting_discussion', '')}"
+            if score >= high_min:
+                decisions.append(label)
+            elif score >= 3:
+                discussion.append(label)
+            else:
+                awareness.append(label)
+        lines += ["**Items requiring discussion:**"] + ([f"- {x}" for x in discussion] or ["- None"])
+        lines += ["", "**Items requiring decision:**"] + ([f"- {x}" for x in decisions] or ["- None"])
+        lines += ["", "**Items for awareness only:**"] + ([f"- {x}" for x in awareness] or ["- None"])
+        lines.append("")
 
     low_relevance = [i for i in included if i.get("relevance", {}).get("score", 0) < 3]
     if report.get("concise_excluded"):
@@ -139,7 +145,10 @@ def build_markdown_report(report: dict) -> str:
             brief = item.get("clinical_brief", {}) or {}
             what = (brief.get("what_changed") or "").strip()
             meta = ", ".join(x for x in [ident.get("guidance_type", ""), ident.get("publication_or_update_date", "")] if x)
-            headline = f"- **{_item_reference(ident)} - {ident.get('title')}**" + (f" ({meta})" if meta else "")
+            name = f"{_item_reference(ident)} - {ident.get('title')}"
+            if ident.get("url"):
+                name = f"[{name}]({ident['url']})"
+            headline = f"- **{name}**" + (f" ({meta})" if meta else "")
             lines.append(f"{headline}: {what}" if what else headline)
             lines.append(f"  - _Why not relevant:_ {item.get('exclusion_reason') or 'Low relevance to clinic services.'}")
         if not excluded and not low_relevance:
@@ -158,11 +167,13 @@ def build_markdown_report(report: dict) -> str:
             lines.append("| None |  |  |  |")
         lines.append("")
 
-    lines += [f"## Appendix B: Main {source_label} Sources", ""]
-    for item in report["items_reviewed"]:
-        ident = item.get("guidance_identification", {})
-        if ident.get("url"):
-            lines.append(f"- {_item_reference(ident)} - {ident.get('title')}: {ident.get('url')}")
+    if not report.get("concise_excluded"):
+        # Concise reports link every item's source inline instead.
+        lines += [f"## Appendix B: Main {source_label} Sources", ""]
+        for item in report["items_reviewed"]:
+            ident = item.get("guidance_identification", {})
+            if ident.get("url"):
+                lines.append(f"- {_item_reference(ident)} - {ident.get('title')}: {ident.get('url')}")
     if report.get("failures"):
         lines += ["", "## Source retrieval failures", ""]
         lines += [f"- {failure}" for failure in report["failures"]]
@@ -292,20 +303,23 @@ def build_docx_report(report: dict, path: Path, config: dict) -> None:
             _add_bullet(doc, _clean_docx_text(point))
         doc.add_heading("Practice Implication", 3)
         doc.add_paragraph(_clean_docx_text(brief.get("practice_implication", "")))
-        doc.add_heading("Suggested Meeting Discussion", 3)
-        _add_bullet(doc, _clean_docx_text(brief.get("meeting_discussion", "")))
-        doc.add_heading("Suggested Action", 3)
-        _add_bullet(doc, _clean_docx_text(brief.get("suggested_action", "")))
+        if not report.get("concise_excluded"):
+            # Concise reports keep actions in the dashboard only.
+            doc.add_heading("Suggested Meeting Discussion", 3)
+            _add_bullet(doc, _clean_docx_text(brief.get("meeting_discussion", "")))
+            doc.add_heading("Suggested Action", 3)
+            _add_bullet(doc, _clean_docx_text(brief.get("suggested_action", "")))
 
-    doc.add_heading("Items For Clinical Meeting", 1)
-    meeting_rows = []
-    for item in clinically_relevant:
-        ident = item["guidance_identification"]
-        score = item.get("relevance", {}).get("score", 0)
-        category = "Decision" if score >= high_min else "Discussion"
-        meeting_rows.append([category, f"{_item_reference(ident)} - {ident.get('title')}", item.get("clinical_brief", {}).get("meeting_discussion", "")])
-    meeting_table = _add_table(doc, ["Type", "Item", "Meeting prompt"], meeting_rows, [1.0, 2.6, 3.8])
-    _shade_header(meeting_table)
+    if not report.get("concise_excluded"):
+        doc.add_heading("Items For Clinical Meeting", 1)
+        meeting_rows = []
+        for item in clinically_relevant:
+            ident = item["guidance_identification"]
+            score = item.get("relevance", {}).get("score", 0)
+            category = "Decision" if score >= high_min else "Discussion"
+            meeting_rows.append([category, f"{_item_reference(ident)} - {ident.get('title')}", item.get("clinical_brief", {}).get("meeting_discussion", "")])
+        meeting_table = _add_table(doc, ["Type", "Item", "Meeting prompt"], meeting_rows, [1.0, 2.6, 3.8])
+        _shade_header(meeting_table)
 
     low_relevance = [i for i in included if i.get("relevance", {}).get("score", 0) < 3]
     if report.get("concise_excluded"):
@@ -324,6 +338,9 @@ def build_docx_report(report: dict, path: Path, config: dict) -> None:
             reason_run = reason_p.add_run(f"Why not relevant: {item.get('exclusion_reason') or 'Low relevance to clinic services.'}")
             reason_run.italic = True
             reason_run.font.size = Pt(10)
+            if ident.get("url"):
+                url_run = reason_p.add_run(f"  ({ident['url']})")
+                url_run.font.size = Pt(8.5)
         if not excluded and not low_relevance:
             doc.add_paragraph("None.")
     else:
@@ -338,14 +355,15 @@ def build_docx_report(report: dict, path: Path, config: dict) -> None:
         appendix_table = _add_table(doc, ["Reference", "Title", "Reason"], appendix_rows or [["None", "", ""]], [0.85, 3.25, 3.3])
         _shade_header(appendix_table)
 
-    doc.add_heading(f"Appendix B: Main {source_label} Sources", 1)
-    source_rows = []
-    for item in report["items_reviewed"]:
-        ident = item.get("guidance_identification", {})
-        if ident.get("url"):
-            source_rows.append([_item_reference(ident), ident.get("title", ""), ident.get("url", "")])
-    source_table = _add_table(doc, ["Reference", "Guidance", "URL"], source_rows, [0.85, 3.25, 3.3])
-    _shade_header(source_table)
+    if not report.get("concise_excluded"):
+        doc.add_heading(f"Appendix B: Main {source_label} Sources", 1)
+        source_rows = []
+        for item in report["items_reviewed"]:
+            ident = item.get("guidance_identification", {})
+            if ident.get("url"):
+                source_rows.append([_item_reference(ident), ident.get("title", ""), ident.get("url", "")])
+        source_table = _add_table(doc, ["Reference", "Guidance", "URL"], source_rows, [0.85, 3.25, 3.3])
+        _shade_header(source_table)
 
     # Completed by hand after each review - never written by the automation.
     doc.add_heading("Actions Completed", 1)
