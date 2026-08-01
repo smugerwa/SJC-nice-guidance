@@ -245,7 +245,7 @@ def _build_native_doc_content(report: dict, title: str) -> dict:
     add(f"{source_label} items reviewed: {len(report['items_reviewed'])}")
     add(f"Included in clinical brief: {len(clinically_relevant)}")
     add(f"Excluded or appendix only: {len(excluded)}")
-    add(f"High or very high primary care relevance: {len(high)}")
+    add(f"High or very high relevance: {len(high)}")
     add()
 
     add("Key Points For Clinical Meeting", "heading")
@@ -282,7 +282,7 @@ def _build_native_doc_content(report: dict, title: str) -> dict:
         add(f"Date: {ident.get('publication_or_update_date', '')}", "label")
         add(f"Status: {ident.get('status', '')}", "label")
         add(
-            "Primary care relevance: "
+            f"{report.get('relevance_label', 'Primary care relevance')}: "
             f"{item.get('relevance', {}).get('score', '')}/5 - {item.get('relevance', {}).get('rationale', '')}",
             "label",
         )
@@ -321,7 +321,7 @@ def _build_native_doc_content(report: dict, title: str) -> dict:
         appendix_rows.append([_item_reference(ident), ident.get("title", ""), item.get("exclusion_reason", "")])
     for item in low_relevance:
         ident = item["guidance_identification"]
-        appendix_rows.append([_item_reference(ident), ident.get("title", ""), "Low primary care relevance; awareness only."])
+        appendix_rows.append([_item_reference(ident), ident.get("title", ""), "Low relevance; awareness only."])
     if len(appendix_rows) == 1:
         appendix_rows.append(["None", "", ""])
     add_table("[[TABLE_APPENDIX_A]]", appendix_rows)

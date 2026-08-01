@@ -40,9 +40,10 @@ def build_markdown_report(report: dict) -> str:
         f"- {source_label} items reviewed: {len(report['items_reviewed'])}",
         f"- Included in detailed review: {len(included)}",
         f"- Excluded or appendix only: {len(excluded)}",
-        f"- High or very high primary care relevance: {len(high)}",
+        f"- High or very high relevance: {len(high)}",
         "",
     ]
+    relevance_label = report.get("relevance_label", "Primary care relevance")
 
     clinically_relevant = [i for i in included if i.get("relevance", {}).get("score", 0) >= 3]
     lines += ["### Key points for clinical meeting", ""]
@@ -81,7 +82,7 @@ def build_markdown_report(report: dict) -> str:
             f"- **Type:** {ident.get('guidance_type', '')}",
             f"- **Date:** {ident.get('publication_or_update_date', '')}",
             f"- **Status:** {ident.get('status', '')}",
-            f"- **Primary care relevance:** {item.get('relevance', {}).get('score', '')}/5 - {item.get('relevance', {}).get('rationale', '')}",
+            f"- **{relevance_label}:** {item.get('relevance', {}).get('score', '')}/5 - {item.get('relevance', {}).get('rationale', '')}",
             f"- **{source_label} source:** {ident.get('url', '')}",
             "",
             "#### What changed or matters",
@@ -136,7 +137,7 @@ def build_markdown_report(report: dict) -> str:
         lines.append(f"| {ident.get('title')} | {_item_reference(ident)} | {ident.get('url')} | {item.get('exclusion_reason', '')} |")
     for item in low_relevance:
         ident = item["guidance_identification"]
-        lines.append(f"| {ident.get('title')} | {_item_reference(ident)} | {ident.get('url')} | Low primary care relevance; awareness only. |")
+        lines.append(f"| {ident.get('title')} | {_item_reference(ident)} | {ident.get('url')} | Low relevance; awareness only. |")
     if not excluded and not low_relevance:
         lines.append("| None |  |  |  |")
     lines.append("")
@@ -229,11 +230,12 @@ def build_docx_report(report: dict, path: Path, config: dict) -> None:
     _shade_header(meta)
     doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
 
+    relevance_label = report.get("relevance_label", "Primary care relevance")
     doc.add_heading("Executive Summary", 1)
     _add_bullet(doc, f"{source_label} items reviewed: {len(report['items_reviewed'])}")
     _add_bullet(doc, f"Included in clinical brief: {len(clinically_relevant)}")
     _add_bullet(doc, f"Excluded or appendix only: {len(excluded)}")
-    _add_bullet(doc, f"High or very high primary care relevance: {len(high)}")
+    _add_bullet(doc, f"High or very high relevance: {len(high)}")
 
     doc.add_heading("Key Points For Clinical Meeting", 2)
     for item in clinically_relevant[:6]:
@@ -264,7 +266,7 @@ def build_docx_report(report: dict, path: Path, config: dict) -> None:
         _add_label_value(doc, "Type", ident.get("guidance_type", ""))
         _add_label_value(doc, "Date", ident.get("publication_or_update_date", ""))
         _add_label_value(doc, "Status", ident.get("status", ""))
-        _add_label_value(doc, "Primary care relevance", f"{item.get('relevance', {}).get('score', '')}/5 - {item.get('relevance', {}).get('rationale', '')}")
+        _add_label_value(doc, relevance_label, f"{item.get('relevance', {}).get('score', '')}/5 - {item.get('relevance', {}).get('rationale', '')}")
         _add_label_value(doc, f"{source_label} source", ident.get("url", ""))
 
         doc.add_heading("What Changed Or Matters", 3)
@@ -297,7 +299,7 @@ def build_docx_report(report: dict, path: Path, config: dict) -> None:
         appendix_rows.append([_item_reference(ident), ident.get("title", ""), item.get("exclusion_reason", "")])
     for item in low_relevance:
         ident = item["guidance_identification"]
-        appendix_rows.append([_item_reference(ident), ident.get("title", ""), "Low primary care relevance; awareness only."])
+        appendix_rows.append([_item_reference(ident), ident.get("title", ""), "Low relevance; awareness only."])
     appendix_table = _add_table(doc, ["Reference", "Title", "Reason"], appendix_rows or [["None", "", ""]], [0.85, 3.25, 3.3])
     _shade_header(appendix_table)
 

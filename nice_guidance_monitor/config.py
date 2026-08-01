@@ -21,6 +21,28 @@ def load_config(path: str) -> dict:
     return json.loads(config_path.read_text(encoding="utf-8"))
 
 
+def get_profiles(config: dict) -> list[dict]:
+    """Return one merged config per practice profile.
+
+    Each entry in config["profiles"] overrides the top-level keys for that
+    practice (practice_name, letterhead_name, email_notification,
+    destination_drive_folder_id, audience, scope_*, storage). A config with
+    no profiles behaves exactly as before: one profile, top-level values.
+    """
+    profiles = config.get("profiles")
+    if not profiles:
+        merged = dict(config)
+        merged.setdefault("profile_id", "")
+        return [merged]
+    resolved = []
+    for profile in profiles:
+        merged = {**config, **profile}
+        merged["profile_id"] = profile.get("id") or profile.get("practice_name", "practice").lower().replace(" ", "-")
+        merged.pop("profiles", None)
+        resolved.append(merged)
+    return resolved
+
+
 def _load_env() -> None:
     try:
         from dotenv import load_dotenv

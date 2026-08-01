@@ -17,6 +17,7 @@ Edit `config.json`:
 - `practice_name`: clinic or practice name.
 - `letterhead_name`: name shown in the page header of every report, e.g. `Soneh Medical Ltd`.
 - `reviewer`: named reviewer or role.
+- `profiles`: optional list of practice profiles. Sources are retrieved once per run, then each profile gets its own relevance analysis, report set, output folder (`outputs/<id>/...`), destination and email. Each profile can override any top-level key and adds: `audience` (`primary_care` for the standard GP-practice logic, `custom` to score against the profile's own services), `scope_description` / `scope_inclusion_rule` (text driving the AI relevance assessment for `custom` audiences), `scope_keywords` (offline fallback heuristics), and `storage` (`gdrive`, or `pending_sharepoint` to keep files local until a SharePoint destination is configured). With no `profiles` key the behaviour is unchanged: one report from the top-level values.
 - `headed_paper_template_docx`: local DOCX headed-paper template.
 - `destination_drive_folder_id`: Google Drive folder ID for completed reports.
 - `email_notification`: email address for the monthly completion alert.

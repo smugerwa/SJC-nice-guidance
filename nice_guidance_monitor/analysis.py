@@ -6,6 +6,36 @@ import re
 from textwrap import dedent
 
 
+def _audience(config: dict) -> str:
+    """"primary_care" keeps the original GP-practice behaviour; "custom"
+    scores relevance against the profile's scope_description/scope_keywords
+    (e.g. Soneh Medical: joint injections, minor surgery, dermatology,
+    ultrasound)."""
+    return config.get("audience", "primary_care")
+
+
+def _setting_phrase(config: dict) -> str:
+    if _audience(config) == "primary_care":
+        return "UK primary care"
+    return f"{config.get('practice_name', 'the clinic')}'s services"
+
+
+def _inclusion_rule(config: dict) -> str:
+    if _audience(config) == "primary_care":
+        return dedent("""
+        Strict primary-care inclusion rule:
+        Include an item in the main report only if it creates a concrete UK primary care action or decision, such as a GP/nurse/pharmacist prescribing change, monitoring requirement, referral/pathway change, diagnostic threshold, safety-netting advice, patient communication change, care-navigation instruction, template/SOP update, audit or staff briefing.
+        Do not include specialist-only cancer drugs, tertiary procedures, hospital-only treatments, or NHS commissioning/funding mandates in the main report just because they are NICE guidance. Put them in the appendix unless the source gives a specific primary care action beyond awareness/referral onward.
+        Do not classify NHS England funding requirements as GP practice actions.
+        """).strip()
+    rule = config.get("scope_inclusion_rule") or (
+        f"Include an item in the main report only if it has a realistic interface with "
+        f"{config.get('practice_name', 'the clinic')}'s clinical services: {config.get('scope_description', '')}. "
+        "Exclude items with no bearing on those services, even when they are important elsewhere in the NHS."
+    )
+    return "Strict inclusion rule:\n" + rule
+
+
 def analyse_item(item: dict, config: dict) -> dict:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -20,8 +50,17 @@ def analyse_item(item: dict, config: dict) -> dict:
         for page in item.get("source_pages", [])
     )[:max_chars]
 
+    setting = _setting_phrase(config)
+    if _audience(config) == "primary_care":
+        report_context = "an internal UK primary care clinical governance report"
+    else:
+        report_context = (
+            f"an internal clinical governance report for {config.get('practice_name', 'the clinic')}, "
+            f"{config.get('scope_description', 'a specialist clinic')}"
+        )
+
     prompt = dedent(f"""
-    You are creating an internal UK primary care clinical governance report from NICE source material.
+    You are creating {report_context} from NICE source material.
     Use only the supplied NICE source text. Do not invent dates, recommendations or actions.
     Distinguish mandatory action from suggested local good practice. Do not give individual patient advice.
 
@@ -29,11 +68,12 @@ def analyse_item(item: dict, config: dict) -> dict:
     included boolean;
     exclusion_reason string;
     guidance_identification object;
-    clinical_brief object with what_changed string, key_takeaways array of 3 to 6 concise clinician-facing bullet strings, practice_implication string, meeting_discussion string, suggested_action string, source_basis string. This is the main report output. It must be concise, specific, and focused on what clinicians should know or change in practice. If the monthly update is administrative only, say that clearly, then give standing clinical takeaways only if the guidance is highly relevant to primary care;
+    clinical_brief object with what_changed string, key_takeaways array of 3 to 6 concise clinician-facing bullet strings, practice_implication string, meeting_discussion string, suggested_action string, source_basis string. This is the main report output. It must be concise, specific, and focused on what clinicians should know or change in practice. If the monthly update is administrative only, say that clearly, then give standing clinical takeaways only if the guidance is highly relevant to {setting};
     plain_english_summary array of 5 to 8 strings;
     key_clinical_points array of concise clinically specific strings. This is mandatory for included items and must include exact thresholds, symptom clusters, timelines, prescribing criteria or referral triggers when present in the NICE source. For example, do not summarise ovarian cancer guidance without listing the persistent symptom set and CA125 age thresholds if those appear in the source;
-    key_clinical_points_by_heading array of objects with heading, source_url, points. Create one object for every NICE source page/chapter/major heading that contains clinically or operationally relevant content. Do not only extract the overview. Include recommendation numbers, definitions, tables, criteria, timeframes, restrictions, monitoring, implementation caveats, and primary care interface points where present;
+    key_clinical_points_by_heading array of objects with heading, source_url, points. Create one object for every NICE source page/chapter/major heading that contains clinically or operationally relevant content. Do not only extract the overview. Include recommendation numbers, definitions, tables, criteria, timeframes, restrictions, monitoring, implementation caveats, and interface points with {setting} where present;
     key_findings object with arrays new_recommendations, updated_recommendations, may_change_practice_behaviour, unlikely_to_affect_primary_care;
+    relevance object rationale must explain relevance specifically to {setting};
     relevance object with score integer 0-5, rationale string, staff_groups array;
     required_actions array of objects with classification, owner, deadline, priority, reason, meeting_note_wording;
     impact_assessment object with clinical, operational, prescribing, referral_pathway, patient_communication, governance_cqc, financial_resource;
@@ -41,10 +81,7 @@ def analyse_item(item: dict, config: dict) -> dict:
     source_urls array;
     source_incomplete boolean.
 
-    Strict primary-care inclusion rule:
-    Include an item in the main report only if it creates a concrete UK primary care action or decision, such as a GP/nurse/pharmacist prescribing change, monitoring requirement, referral/pathway change, diagnostic threshold, safety-netting advice, patient communication change, care-navigation instruction, template/SOP update, audit or staff briefing.
-    Do not include specialist-only cancer drugs, tertiary procedures, hospital-only treatments, or NHS commissioning/funding mandates in the main report just because they are NICE guidance. Put them in the appendix unless the source gives a specific primary care action beyond awareness/referral onward.
-    Do not classify NHS England funding requirements as GP practice actions.
+    {_inclusion_rule(config)}
 
     Item metadata:
     {json.dumps(item, ensure_ascii=False)[:5000]}
@@ -69,11 +106,19 @@ def analyse_item(item: dict, config: dict) -> dict:
     if not result.get("key_clinical_points_by_heading"):
         result["key_clinical_points_by_heading"] = _clinical_points_by_heading_from_source(item)
     result["raw_item"] = item
-    result = _apply_primary_care_gate(result, item)
+    result = _apply_relevance_gate(result, item, config)
     return result
 
 
+def _apply_relevance_gate(result: dict, item: dict, config: dict) -> dict:
+    if _audience(config) == "primary_care":
+        return _apply_primary_care_gate(result, item)
+    return _apply_scope_gate(result, item, config)
+
+
 def fallback_analysis(item: dict, config: dict) -> dict:
+    if _audience(config) != "primary_care":
+        return _custom_scope_fallback(item, config)
     title = item.get("title", "")
     ref = item.get("reference", "")
     status = item.get("status", "other")
@@ -210,6 +255,107 @@ def fallback_analysis(item: dict, config: dict) -> dict:
         "raw_item": item,
     }
     return _apply_primary_care_gate(result, item)
+
+
+def _custom_scope_fallback(item: dict, config: dict) -> dict:
+    """No-LLM heuristic for custom-scope profiles: a scope keyword hit means
+    'probably relevant, clinician to confirm'; anything else goes to the
+    appendix. Deliberately conservative - the LLM path is the real analysis."""
+    practice = config.get("practice_name", "the clinic")
+    title = item.get("title", "")
+    ref = item.get("reference", "")
+    text = "\n".join(page.get("text", "") for page in item.get("source_pages", []))
+    lower = f"{title} {text}".lower()
+    keywords = [k.lower() for k in config.get("scope_keywords", [])]
+    matched = sorted({k for k in keywords if k in lower})
+
+    if matched:
+        included = True
+        score = 3
+        reason = (
+            f"Mentions {', '.join(matched[:5])} - potentially relevant to {practice} services; "
+            "clinician review needed (heuristic analysis only)."
+        )
+    else:
+        included = False
+        score = 1
+        reason = f"No clear relevance to {practice} services identified by fallback analysis."
+
+    actions = []
+    if included:
+        actions.append({
+            "classification": "Clinician review",
+            "owner": "Clinical lead",
+            "deadline": "Next governance review",
+            "priority": "low",
+            "reason": reason,
+            "meeting_note_wording": f"{ref}: review against {practice} services; heuristic match only.",
+        })
+
+    result = {
+        "included": included,
+        "exclusion_reason": "" if included else reason,
+        "guidance_identification": {
+            "title": title,
+            "nice_reference": ref,
+            "guidance_type": item.get("guidance_type", ""),
+            "publication_or_update_date": item.get("published") or item.get("last_updated", ""),
+            "url": item.get("url", ""),
+            "status": item.get("status", "other"),
+        },
+        "plain_english_summary": [],
+        "clinical_brief": _clinical_brief_from_source(item, text),
+        "key_clinical_points": _clinical_points_from_source(item, text),
+        "key_clinical_points_by_heading": _clinical_points_by_heading_from_source(item),
+        "relevance": {"score": score, "rationale": reason, "staff_groups": ["Clinical lead"]},
+        "required_actions": actions,
+        "impact_assessment": {
+            "clinical": reason,
+            "operational": "To be confirmed by clinician review.",
+            "prescribing": "To be confirmed by clinician review.",
+            "referral_pathway": "To be confirmed by clinician review.",
+            "patient_communication": "To be confirmed by clinician review.",
+            "governance_cqc": "Keep source log and decision record.",
+            "financial_resource": "To be confirmed locally.",
+        },
+        "recommended_communication": {
+            "gp_meeting": actions[0]["meeting_note_wording"] if actions else "",
+            "nurse_pharmacist_update": "",
+            "admin_care_navigation_update": "",
+        },
+        "source_urls": [page.get("url") for page in item.get("source_pages", [])] or [item.get("url", "")],
+        "source_incomplete": item.get("source_incomplete", False),
+        "raw_item": item,
+    }
+    return _apply_scope_gate(result, item, config)
+
+
+def _apply_scope_gate(result: dict, item: dict, config: dict) -> dict:
+    """Gate for custom-scope profiles. The LLM (or heuristic) has already
+    scored relevance against the profile's services; this pass only keeps the
+    main brief to items scoring 3+ so the report stays actionable."""
+    practice = config.get("practice_name", "the clinic")
+
+    def exclude(reason: str, score: int = 1) -> dict:
+        result["included"] = False
+        result["exclusion_reason"] = reason
+        result.setdefault("relevance", {})["score"] = min(int(result.get("relevance", {}).get("score", score) or score), score)
+        result.setdefault("relevance", {})["rationale"] = reason
+        result["required_actions"] = []
+        result["recommended_communication"] = {
+            "gp_meeting": "",
+            "nurse_pharmacist_update": "",
+            "admin_care_navigation_update": "",
+        }
+        return result
+
+    score = int(result.get("relevance", {}).get("score", 0) or 0)
+    if score < 3:
+        return exclude(
+            result.get("exclusion_reason") or f"Low relevance to {practice} services; awareness only.",
+            score,
+        )
+    return result
 
 
 def _apply_primary_care_gate(result: dict, item: dict) -> dict:

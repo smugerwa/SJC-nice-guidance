@@ -6,6 +6,10 @@ import re
 from textwrap import dedent
 
 
+def _audience(config: dict) -> str:
+    return config.get("audience", "primary_care")
+
+
 def analyse_item(item: dict, config: dict) -> dict:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -20,8 +24,26 @@ def analyse_item(item: dict, config: dict) -> dict:
         for page in item.get("source_pages", [])
     )[:max_chars]
 
+    if _audience(config) == "primary_care":
+        report_context = "an internal UK primary care clinical governance report"
+        inclusion_rule = (
+            "Include only items with a realistic UK GP primary care or dispensing-practice interface in the main brief. "
+            "Put specialist-only hospital/device items with no GP action into appendix/excluded status."
+        )
+    else:
+        practice = config.get("practice_name", "the clinic")
+        report_context = (
+            f"an internal clinical governance report for {practice}, "
+            f"{config.get('scope_description', 'a specialist clinic')}"
+        )
+        inclusion_rule = config.get("scope_inclusion_rule") or (
+            f"Include only items with a realistic interface with {practice}'s clinical services in the main brief; "
+            "score relevance against those services, not general NHS or primary care relevance. "
+            "Put items with no bearing on those services into appendix/excluded status."
+        )
+
     prompt = dedent(f"""
-    You are creating an internal UK primary care clinical governance report from MHRA alerts, recalls and safety updates.
+    You are creating {report_context} from MHRA alerts, recalls and safety updates.
     Use only the supplied MHRA source text. Do not invent dates, batches, products, warnings, recommendations or actions.
     Distinguish mandatory action from awareness-only local good practice. Do not give individual patient advice.
 
@@ -39,7 +61,7 @@ def analyse_item(item: dict, config: dict) -> dict:
     source_urls array;
     source_incomplete boolean.
 
-    Include only items with a realistic UK GP primary care or dispensing-practice interface in the main brief. Put specialist-only hospital/device items with no GP action into appendix/excluded status.
+    {inclusion_rule}
 
     Item metadata:
     {json.dumps(item, ensure_ascii=False)[:5000]}
@@ -69,6 +91,9 @@ def fallback_analysis(item: dict, config: dict) -> dict:
     text = "\n".join(page.get("text", "") for page in item.get("source_pages", []))
     combined = f"{title} {alert_type} {' '.join(item.get('medical_specialisms') or [])} {item.get('summary', '')} {text}"
     lower = combined.lower()
+
+    if _audience(config) != "primary_care":
+        return _custom_scope_fallback(item, config, combined, lower)
 
     score = 1
     included = False
@@ -193,6 +218,96 @@ def fallback_analysis(item: dict, config: dict) -> dict:
             "gp_meeting": actions[0]["meeting_note_wording"] if actions else "",
             "nurse_pharmacist_update": "Share with prescribing/dispensing staff if the product is used locally.",
             "admin_care_navigation_update": "Brief reception/care navigation only if patients may ask about affected products.",
+        },
+        "source_urls": [page.get("url") for page in item.get("source_pages", [])] or [item.get("url", "")],
+        "source_incomplete": item.get("source_incomplete", False),
+        "raw_item": item,
+    }
+    return _normalise_result(result, item)
+
+
+def _custom_scope_fallback(item: dict, config: dict, combined: str, lower: str) -> dict:
+    """No-LLM heuristic for custom-scope profiles: keep MHRA items only when a
+    scope keyword or an urgent national alert signal is present; clinician
+    confirms. Deliberately conservative - the LLM path is the real analysis."""
+    practice = config.get("practice_name", "the clinic")
+    ref = item.get("reference", "")
+    keywords = [k.lower() for k in config.get("scope_keywords", [])]
+    matched = sorted({k for k in keywords if k in lower})
+    urgent = "national patient safety alert" in lower or "class 1" in lower
+
+    if urgent and matched:
+        included, score, priority = True, 5, "urgent"
+        reason = f"Urgent national alert mentioning {', '.join(matched[:4])} - check {practice} stock and procedures now."
+    elif matched:
+        included, score, priority = True, 3, "medium"
+        reason = (
+            f"Mentions {', '.join(matched[:5])} - potentially relevant to {practice} services; "
+            "clinician review needed (heuristic analysis only)."
+        )
+    else:
+        included, score, priority = False, 1, "low"
+        reason = f"No clear relevance to {practice} services identified by fallback analysis."
+
+    takeaways = _extract_action_sentences(combined) or [
+        "Review the MHRA source page for affected product, batch and action details before changing practice.",
+        f"Check whether {practice} uses, stores or administers the affected product or device.",
+    ]
+    actions = []
+    if included:
+        actions.append({
+            "classification": "Immediate safety action" if urgent else "Clinician review",
+            "owner": "Clinical lead",
+            "deadline": "Immediately" if urgent else "Within 2 working days",
+            "priority": priority,
+            "reason": reason,
+            "meeting_note_wording": f"{ref or 'MHRA'}: confirm whether affected stock, procedures or patient contact apply to {practice}.",
+        })
+
+    result = {
+        "included": included,
+        "exclusion_reason": "" if included else reason,
+        "guidance_identification": {
+            "title": item.get("title", ""),
+            "source_reference": ref,
+            "guidance_type": item.get("alert_type", ""),
+            "publication_or_update_date": item.get("issued", ""),
+            "url": item.get("url", ""),
+            "status": "issued",
+        },
+        "plain_english_summary": takeaways[:5],
+        "clinical_brief": {
+            "what_changed": item.get("summary") or "MHRA issued a safety alert/update. Review the source for affected product and action details.",
+            "key_takeaways": takeaways[:6],
+            "practice_implication": (
+                f"Check whether {practice} prescribes, stores, administers or uses the affected product/device; "
+                "document the decision and any stock or patient actions."
+                if included else "File for awareness unless local use of the product/device is identified."
+            ),
+            "meeting_discussion": (
+                f"Does this MHRA item require stock checks, procedure changes or staff briefing at {practice}?"
+                if included else "Is there any local use that means this should be escalated beyond awareness?"
+            ),
+            "suggested_action": actions[0]["meeting_note_wording"] if actions else
+                f"Clinical lead to file for awareness; no {practice} action identified by fallback analysis.",
+            "source_basis": "Fallback analysis of MHRA GOV.UK alert page; clinician sign-off required.",
+        },
+        "key_clinical_points": takeaways,
+        "relevance": {"score": score, "rationale": reason, "staff_groups": ["Clinical lead"]},
+        "required_actions": actions,
+        "impact_assessment": {
+            "clinical": reason,
+            "operational": "Check local stock and procedure workflow if relevant.",
+            "prescribing": "Confirm whether locally used injectables, anaesthetics or topical products are affected.",
+            "referral_pathway": "No pathway change identified unless specified in the MHRA alert.",
+            "patient_communication": "Contact affected patients only where the alert or local stock review indicates this is needed.",
+            "governance_cqc": "Keep the MHRA source log and document the practice decision/action.",
+            "financial_resource": "Likely low unless stock replacement or patient recall is needed.",
+        },
+        "recommended_communication": {
+            "gp_meeting": actions[0]["meeting_note_wording"] if actions else "",
+            "nurse_pharmacist_update": "Share with clinical staff if the product/device is used locally.",
+            "admin_care_navigation_update": "Brief reception only if patients may ask about affected products.",
         },
         "source_urls": [page.get("url") for page in item.get("source_pages", [])] or [item.get("url", "")],
         "source_incomplete": item.get("source_incomplete", False),

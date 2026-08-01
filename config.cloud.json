@@ -2,6 +2,35 @@
   "practice_name": "Soneh Medical",
   "letterhead_name": "Soneh Medical Ltd",
   "reviewer": "Dr Soul Mugerwa",
+  "profiles": [
+    {
+      "id": "church-road",
+      "practice_name": "Church Road Medical Practice",
+      "letterhead_name": "Church Road Medical Practice",
+      "audience": "primary_care",
+      "storage": "pending_sharepoint",
+      "email_notification": "info@skinjointclinic.co.uk"
+    },
+    {
+      "id": "soneh-medical",
+      "practice_name": "Soneh Medical",
+      "letterhead_name": "Soneh Medical Ltd",
+      "audience": "custom",
+      "storage": "gdrive",
+      "scope_description": "a private specialist outpatient clinic (the Skin and Joint Injection Clinic) providing musculoskeletal joint and soft-tissue injections (including ultrasound-guided corticosteroid and hyaluronic acid injections), minor surgery (skin lesion excision, punch biopsy, cryotherapy), dermatology assessment and treatment, and diagnostic musculoskeletal ultrasound",
+      "scope_inclusion_rule": "Include an item in the main report only if it has a realistic interface with the clinic's services: joint and soft-tissue injections and the injectable medicines used in them (corticosteroids, local anaesthetics, hyaluronic acid); minor skin surgery, wound care and surgical consumables; dermatology diagnosis and treatment including skin lesion recognition, skin cancer referral criteria and topical or systemic dermatology treatments; diagnostic and interventional musculoskeletal ultrasound; musculoskeletal conditions treated with injections (osteoarthritis, tendinopathy, bursitis, carpal tunnel syndrome, frozen shoulder); infection control, decontamination, consent and safety processes for outpatient procedures. Exclude general primary care prescribing, chronic disease management, and hospital-only specialist items with no bearing on these services.",
+      "scope_keywords": [
+        "joint injection", "intra-articular", "corticosteroid", "methylprednisolone", "triamcinolone",
+        "hydrocortisone", "hyaluronic acid", "local anaesthetic", "lidocaine", "lignocaine",
+        "minor surgery", "excision", "biopsy", "cryotherapy", "suture", "wound care", "wound closure",
+        "dermatology", "dermatological", "skin lesion", "skin cancer", "melanoma", "basal cell",
+        "squamous cell", "actinic keratosis", "eczema", "psoriasis", "acne", "topical",
+        "ultrasound", "musculoskeletal", "osteoarthritis", "tendinopathy", "tendonitis", "bursitis",
+        "carpal tunnel", "frozen shoulder", "adhesive capsulitis", "plantar fasciitis",
+        "infection control", "decontamination", "sterile", "consent"
+      ]
+    }
+  ],
   "headed_paper_template_docx": "",
   "google_doc_template_id": "",
   "google_oauth_token_path": ".google_token.json",

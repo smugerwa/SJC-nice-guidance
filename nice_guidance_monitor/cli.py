@@ -5,7 +5,7 @@ import json
 from datetime import date
 from pathlib import Path
 
-from .config import load_config, month_bounds
+from .config import load_config, month_bounds, get_profiles
 from .nice import NiceClient, load_sample_items
 from .analysis import analyse_item, fallback_analysis
 from .report import build_markdown_report, build_docx_report
@@ -34,8 +34,6 @@ def main() -> None:
         config["reviewer"] = args.reviewer
 
     start, end, month_label = month_bounds(args.month, config.get("default_target_month", "previous"))
-    out_dir = Path(config.get("output_dir", "outputs")) / month_label.replace(" ", "_")
-    out_dir.mkdir(parents=True, exist_ok=True)
 
     if args.sample_data:
         items = load_sample_items(Path(args.sample_data))
@@ -44,42 +42,68 @@ def main() -> None:
         client = NiceClient(config["nice"])
         items, failures = client.items_for_month(start, end)
 
+    # Sources are retrieved once; each practice profile then gets its own
+    # relevance analysis, report set and destination.
+    summaries = []
+    for profile in get_profiles(config):
+        summaries.append(_run_profile(profile, items, list(failures), month_label, args))
+
+    print(json.dumps(summaries if len(summaries) > 1 else summaries[0], indent=2))
+    failed_emails = [s["title"] for s in summaries if s.get("email_notification_error")]
+    if config.get("require_email_notification") and failed_emails:
+        raise SystemExit(f"Email notification failed for: {', '.join(failed_emails)}; see completion summary above.")
+
+
+def _run_profile(profile: dict, items: list, failures: list, month_label: str, args) -> dict:
+    out_dir = Path(profile.get("output_dir", "outputs"))
+    if profile.get("profile_id"):
+        out_dir = out_dir / profile["profile_id"]
+    out_dir = out_dir / month_label.replace(" ", "_")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
     analysed = []
     for item in items:
         if args.no_llm:
-            result = fallback_analysis(item, config)
+            result = fallback_analysis(item, profile)
         else:
-            result = analyse_item(item, config)
+            result = analyse_item(item, profile)
         analysed.append(result)
 
     report = {
-        "practice_name": config["practice_name"],
+        "practice_name": profile["practice_name"],
         "month_label": month_label,
         "date_generated": date.today().isoformat(),
-        "reviewer": config.get("reviewer", ""),
+        "reviewer": profile.get("reviewer", ""),
         "items_reviewed": analysed,
         "failures": failures,
-        "thresholds": config.get("thresholds", {}),
+        "thresholds": profile.get("thresholds", {}),
+        "relevance_label": profile.get("relevance_label") or (
+            "Primary care relevance" if profile.get("audience", "primary_care") == "primary_care"
+            else f"{profile['practice_name']} relevance"
+        ),
     }
 
-    title = f"NICE Guidance Monthly Review - {month_label} - {config['practice_name']}"
+    title = f"NICE Guidance Monthly Review - {month_label} - {profile['practice_name']}"
     json_path = out_dir / f"{title}.json"
     md_path = out_dir / f"{title}.md"
     docx_path = out_dir / f"{title}.docx"
 
     json_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     md_path.write_text(build_markdown_report(report), encoding="utf-8")
-    build_docx_report(report, docx_path, config)
+    build_docx_report(report, docx_path, profile)
 
     google_doc = None
     if not args.no_google:
-        # A Google failure (expired token, API outage) must not lose the run:
-        # the local artefacts already exist and the email can still report it.
-        try:
-            google_doc = create_native_google_doc_report(report, title, config)
-        except Exception as exc:
-            google_doc = {"created": False, "mode": "failed", "reason": str(exc)}
-            failures.append(f"Google Doc creation failed: {exc}")
+        if profile.get("storage") == "pending_sharepoint":
+            google_doc = {"created": False, "mode": "skipped", "reason": "SharePoint destination not configured yet; local files only."}
+        else:
+            # A Google failure (expired token, API outage) must not lose the run:
+            # the local artefacts already exist and the email can still report it.
+            try:
+                google_doc = create_native_google_doc_report(report, title, profile)
+            except Exception as exc:
+                google_doc = {"created": False, "mode": "failed", "reason": str(exc)}
+                failures.append(f"Google Doc creation failed: {exc}")
 
     high_actions = [
         action for item in analysed
@@ -89,6 +113,7 @@ def main() -> None:
 
     summary = {
         "title": title,
+        "practice": profile["practice_name"],
         "month": month_label,
         "items_reviewed": len(analysed),
         "included": sum(1 for i in analysed if i.get("included")),
@@ -101,13 +126,10 @@ def main() -> None:
         "failures": failures,
     }
     try:
-        summary["email_notification_sent_to"] = send_completion_email(summary, config)
+        summary["email_notification_sent_to"] = send_completion_email(summary, profile)
     except Exception as exc:
         summary["email_notification_error"] = str(exc)
-
-    print(json.dumps(summary, indent=2))
-    if config.get("require_email_notification") and summary.get("email_notification_error"):
-        raise SystemExit("Email notification failed; see completion summary above.")
+    return summary
 
 
 if __name__ == "__main__":
