@@ -15,6 +15,7 @@ This workflow creates a monthly clinical-governance report for NICE guidance tha
 Edit `config.json`:
 
 - `practice_name`: clinic or practice name.
+- `letterhead_name`: name shown in the page header of every report, e.g. `Soneh Medical Ltd`.
 - `reviewer`: named reviewer or role.
 - `headed_paper_template_docx`: local DOCX headed-paper template.
 - `destination_drive_folder_id`: Google Drive folder ID for completed reports.

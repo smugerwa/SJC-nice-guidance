@@ -6,9 +6,12 @@ import json
 from pathlib import Path
 
 
-NAVY = {"color": {"rgbColor": {"red": 0.0, "green": 0.125, "blue": 0.376}}}
-BLACK = {"color": {"rgbColor": {"red": 0.137, "green": 0.137, "blue": 0.137}}}
-PALE_NAVY = {"color": {"rgbColor": {"red": 0.851, "green": 0.886, "blue": 0.953}}}
+# House style: the clinic's brand palette (skinjointclinic.co.uk) - navy
+# #071727, ink #101820 and pale gold #E9DFD0, matching the Cliniko audit
+# reports and the DOCX output.
+NAVY = {"color": {"rgbColor": {"red": 0.027, "green": 0.090, "blue": 0.153}}}
+BLACK = {"color": {"rgbColor": {"red": 0.063, "green": 0.094, "blue": 0.125}}}
+PALE_NAVY = {"color": {"rgbColor": {"red": 0.914, "green": 0.875, "blue": 0.816}}}
 
 
 def create_native_google_doc_report(report: dict, title: str, config: dict) -> dict:
@@ -39,6 +42,7 @@ def create_native_google_doc_report(report: dict, title: str, config: dict) -> d
     requests.extend(content["style_requests"])
     docs.documents().batchUpdate(documentId=document_id, body={"requests": requests}).execute()
     _replace_table_markers(docs, document_id, content["text"], content["tables"])
+    _add_letterhead_header(docs, document_id, config.get("letterhead_name") or report.get("practice_name", ""))
 
     return {
         "created": True,
@@ -91,6 +95,42 @@ def upload_docx_as_google_doc(docx_path: Path, title: str, config: dict, markdow
         )
         fallback["warning"] = f"DOCX upload failed; created a native Google Doc summary instead. Error: {exc}"
         return fallback
+
+
+def _add_letterhead_header(docs, document_id: str, letterhead: str) -> None:
+    """Add the clinic letterhead as a page header. The Docs API cannot insert
+    page-number fields, so the 'Page N/M' footer only exists in the DOCX;
+    header creation failing must never fail the report run."""
+    if not letterhead:
+        return
+    try:
+        reply = docs.documents().batchUpdate(
+            documentId=document_id,
+            body={"requests": [{"createHeader": {"type": "DEFAULT"}}]},
+        ).execute()
+        header_id = reply["replies"][0]["createHeader"]["headerId"]
+        docs.documents().batchUpdate(
+            documentId=document_id,
+            body={
+                "requests": [
+                    {"insertText": {"location": {"segmentId": header_id, "index": 0}, "text": letterhead}},
+                    {
+                        "updateTextStyle": {
+                            "range": {"segmentId": header_id, "startIndex": 0, "endIndex": len(letterhead)},
+                            "textStyle": {
+                                "bold": True,
+                                "fontSize": {"magnitude": 9, "unit": "PT"},
+                                "foregroundColor": NAVY,
+                                "weightedFontFamily": {"fontFamily": "Calibri"},
+                            },
+                            "fields": "bold,fontSize,foregroundColor,weightedFontFamily",
+                        }
+                    },
+                ]
+            },
+        ).execute()
+    except Exception as exc:
+        print(f"Google Doc header could not be added: {exc}", flush=True)
 
 
 def _has_google_auth_config(config: dict) -> bool:
@@ -295,6 +335,17 @@ def _build_native_doc_content(report: dict, title: str) -> dict:
             source_rows.append([_item_reference(ident), ident.get("title", ""), ident.get("url", "")])
     add_table("[[TABLE_SOURCES]]", source_rows)
     add()
+
+    add("Actions Completed", "heading")
+    add(
+        "To be completed by the practice team: record any actions taken in response to the "
+        "items above, with dates - evidence of implementation of changes in practice (CQC)."
+    )
+    add_table(
+        "[[TABLE_ACTIONS_COMPLETED]]",
+        [["Date", "Action taken", "Evidence / notes"], ["", "", ""], ["", "", ""], ["", "", ""], ["", "", ""]],
+    )
+    add()
     add("Full linked-source extraction is retained in the JSON source log for audit, but omitted from this meeting brief for readability.")
 
     text = "\n".join(lines).strip() + "\n"
@@ -477,6 +528,8 @@ def _base_text_style_requests(text: str) -> list[dict]:
         "Appendix B: Main NICE Sources",
         "Appendix A: Low-Relevance Or Excluded MHRA Items",
         "Appendix B: Main MHRA Sources",
+        "Actions Completed",
+        "Actions completed",
     }
     section_labels = {
         "What Changed Or Matters",

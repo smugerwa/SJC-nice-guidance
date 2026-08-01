@@ -3,6 +3,18 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+# House style: the clinic's brand palette (skinjointclinic.co.uk) - navy and
+# gold, matching the Cliniko audit reports.
+INK = "101820"
+NAVY = "071727"
+MUTED = "596675"
+TABLE_HEADER_FILL = "E9DFD0"
+RULE_GREY = "e4e7eb"
+
+
+def _letterhead_name(report: dict, config: dict) -> str:
+    return config.get("letterhead_name") or report.get("practice_name", "")
+
 
 def build_markdown_report(report: dict) -> str:
     source_label = report.get("source_label", "NICE")
@@ -137,6 +149,18 @@ def build_markdown_report(report: dict) -> str:
     if report.get("failures"):
         lines += ["", "## Source retrieval failures", ""]
         lines += [f"- {failure}" for failure in report["failures"]]
+    lines += [
+        "",
+        "## Actions completed",
+        "",
+        "_To be completed by the practice team: record any actions taken in response to the items above, with dates - evidence of implementation of changes in practice (CQC)._",
+        "",
+        "| Date | Action taken | Evidence / notes |",
+        "| --- | --- | --- |",
+        "|  |  |  |",
+        "|  |  |  |",
+        "|  |  |  |",
+    ]
     lines += ["", "_Clinical governance document - for internal use._", ""]
     lines += ["", "_Full linked-source extraction is retained in the JSON source log for audit, but omitted from this meeting brief for readability._", ""]
     return "\n".join(lines)
@@ -165,12 +189,13 @@ def build_docx_report(report: dict, path: Path, config: dict) -> None:
 
     _setup_docx_styles(doc)
 
-    header = section.header.paragraphs[0] if section.header.paragraphs else section.header.add_paragraph()
-    header.text = f"{report['practice_name']} | {report_title} | {report['month_label']}"
-    header.style = doc.styles["Header"] if "Header" in [s.name for s in doc.styles] else header.style
-    footer = section.footer.paragraphs[0] if section.footer.paragraphs else section.footer.add_paragraph()
-    footer.text = f"Generated {report['date_generated']} | Clinical governance document - for internal use"
-    footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    ink = RGBColor.from_string(INK)
+    navy = RGBColor.from_string(NAVY)
+    muted = RGBColor.from_string(MUTED)
+    letterhead = _letterhead_name(report, config)
+    for doc_section in doc.sections:
+        _letterhead_header(doc_section, letterhead, f"{report_title} — {report['month_label']}", navy, muted)
+        _page_number_footer(doc_section, f"{letterhead} — {report_title}, {report['month_label']}", muted)
 
     included = [i for i in report["items_reviewed"] if i.get("included")]
     excluded = [i for i in report["items_reviewed"] if not i.get("included")]
@@ -186,13 +211,13 @@ def build_docx_report(report: dict, path: Path, config: dict) -> None:
     run.bold = True
     run.font.size = Pt(24)
     run.font.name = "Calibri"
-    run.font.color.rgb = RGBColor(0, 32, 96)
+    run.font.color.rgb = navy
     subtitle = doc.add_paragraph()
     subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
     subtitle_run = subtitle.add_run(f"{report['month_label']} - {report['practice_name']}")
     subtitle_run.font.size = Pt(15)
     subtitle_run.font.name = "Calibri"
-    subtitle_run.font.color.rgb = RGBColor(70, 70, 70)
+    subtitle_run.font.color.rgb = muted
     doc.add_paragraph()
 
     meta = _add_table(doc, ["Field", "Detail"], [
@@ -285,13 +310,32 @@ def build_docx_report(report: dict, path: Path, config: dict) -> None:
     source_table = _add_table(doc, ["Reference", "Guidance", "URL"], source_rows, [0.85, 3.25, 3.3])
     _shade_header(source_table)
 
+    # Completed by hand after each review - never written by the automation.
+    doc.add_heading("Actions Completed", 1)
+    guidance_note = doc.add_paragraph()
+    guidance_run = guidance_note.add_run(
+        "To be completed by the practice team: record any actions taken in response to the "
+        "items above, with dates - evidence of implementation of changes in practice (CQC)."
+    )
+    guidance_run.italic = True
+    guidance_run.font.size = Pt(8.5)
+    guidance_run.font.name = "Calibri"
+    guidance_run.font.color.rgb = muted
+    actions_table = _add_table(
+        doc,
+        ["Date", "Action taken", "Evidence / notes"],
+        [["", "", ""], ["", "", ""], ["", "", ""], ["", "", ""]],
+        [1.0, 3.0, 2.65],
+    )
+    _shade_header(actions_table)
+
     note = doc.add_paragraph()
     note.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r = note.add_run("Full linked-source extraction is retained in the JSON source log for audit, but omitted from this meeting brief for readability.")
     r.italic = True
     r.font.size = Pt(8)
     r.font.name = "Calibri"
-    r.font.color.rgb = RGBColor(100, 100, 100)
+    r.font.color.rgb = muted
 
     _finalize_docx_typography(doc)
     doc.save(path)
@@ -304,11 +348,13 @@ def _item_reference(ident: dict) -> str:
 def _setup_docx_styles(doc) -> None:
     from docx.shared import Pt, RGBColor
 
+    ink = RGBColor.from_string(INK)
+    navy = RGBColor.from_string(NAVY)
     for style_name, size, color, bold in [
-        ("Normal", 12, RGBColor(35, 35, 35), False),
-        ("Heading 1", 16, RGBColor(0, 32, 96), True),
-        ("Heading 2", 13, RGBColor(0, 32, 96), True),
-        ("Heading 3", 12, RGBColor(0, 32, 96), True),
+        ("Normal", 12, ink, False),
+        ("Heading 1", 16, navy, True),
+        ("Heading 2", 13, navy, True),
+        ("Heading 3", 12, navy, True),
     ]:
         style = _get_style_case_insensitive(doc, style_name)
         if style:
@@ -316,6 +362,97 @@ def _setup_docx_styles(doc) -> None:
             style.font.size = Pt(size)
             style.font.color.rgb = color
             style.font.bold = bold
+    _set_uk_language(doc)
+
+
+def _set_uk_language(doc) -> None:
+    """Mark the document as UK English so Word proofs against en-GB."""
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    style = _get_style_case_insensitive(doc, "Normal")
+    if not style:
+        return
+    rpr = style.element.get_or_add_rPr()
+    lang = rpr.find(qn("w:lang"))
+    if lang is None:
+        lang = OxmlElement("w:lang")
+        rpr.append(lang)
+    lang.set(qn("w:val"), "en-GB")
+
+
+def _letterhead_header(section, letterhead: str, right_text: str, navy, muted) -> None:
+    """Clinic letterhead on every page: name in brand navy on the left, the
+    report title and period muted on the right, with a rule underneath."""
+    from docx.enum.text import WD_TAB_ALIGNMENT
+    from docx.shared import Inches, Pt
+
+    p = section.header.paragraphs[0] if section.header.paragraphs else section.header.add_paragraph()
+    p.text = ""
+    p.paragraph_format.tab_stops.add_tab_stop(Inches(6.65), WD_TAB_ALIGNMENT.RIGHT)
+    _paragraph_rule(p, edge="bottom")
+    name_run = p.add_run(letterhead)
+    name_run.bold = True
+    name_run.font.name = "Calibri"
+    name_run.font.size = Pt(9.5)
+    name_run.font.color.rgb = navy
+    right_run = p.add_run(f"\t{right_text}")
+    right_run.font.name = "Calibri"
+    right_run.font.size = Pt(7.5)
+    right_run.font.color.rgb = muted
+
+
+def _page_number_footer(section, left_text: str, muted) -> None:
+    """'{clinic} — {report}, {period}' left, 'Page N/M' right, with a rule
+    above - the footer every page of the report carries."""
+    from docx.enum.text import WD_TAB_ALIGNMENT
+    from docx.shared import Inches, Pt
+
+    p = section.footer.paragraphs[0] if section.footer.paragraphs else section.footer.add_paragraph()
+    p.text = ""
+    p.paragraph_format.tab_stops.add_tab_stop(Inches(6.65), WD_TAB_ALIGNMENT.RIGHT)
+    _paragraph_rule(p, edge="top")
+
+    def styled(text=""):
+        run = p.add_run(text)
+        run.font.name = "Calibri"
+        run.font.size = Pt(7.5)
+        run.font.color.rgb = muted
+        return run
+
+    styled(f"{left_text}\tPage ")
+    # page numbers are Word fields, so they render per page
+    _add_field(styled(), "PAGE")
+    styled("/")
+    _add_field(styled(), "NUMPAGES")
+
+
+def _paragraph_rule(paragraph, edge: str) -> None:
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    border = OxmlElement("w:pBdr")
+    line = OxmlElement(f"w:{edge}")
+    for attr, val in (("w:val", "single"), ("w:sz", "4"), ("w:space", "6"), ("w:color", RULE_GREY)):
+        line.set(qn(attr), val)
+    border.append(line)
+    paragraph._p.get_or_add_pPr().append(border)
+
+
+def _add_field(run, instruction: str) -> None:
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    for element in ("begin", None, "end"):
+        if element is None:
+            instr = OxmlElement("w:instrText")
+            instr.set(qn("xml:space"), "preserve")
+            instr.text = instruction
+            run._r.append(instr)
+        else:
+            fld = OxmlElement("w:fldChar")
+            fld.set(qn("w:fldCharType"), element)
+            run._r.append(fld)
 
 
 def _get_style_case_insensitive(doc, style_name: str):
@@ -328,8 +465,8 @@ def _get_style_case_insensitive(doc, style_name: str):
 def _finalize_docx_typography(doc) -> None:
     from docx.shared import Pt, RGBColor
 
-    navy = RGBColor(0, 32, 96)
-    body = RGBColor(35, 35, 35)
+    navy = RGBColor.from_string(NAVY)
+    body = RGBColor.from_string(INK)
     for paragraph in doc.paragraphs:
         style_name = paragraph.style.name.lower()
         for run in paragraph.runs:
@@ -401,7 +538,7 @@ def _shade_header(table) -> None:
     for cell in table.rows[0].cells:
         tc_pr = cell._tc.get_or_add_tcPr()
         shading = OxmlElement("w:shd")
-        shading.set(qn("w:fill"), "D9E2F3")
+        shading.set(qn("w:fill"), TABLE_HEADER_FILL)
         tc_pr.append(shading)
 
 
