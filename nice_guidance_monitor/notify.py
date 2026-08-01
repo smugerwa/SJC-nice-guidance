@@ -30,7 +30,7 @@ def send_completion_email(summary: dict, config: dict) -> str | None:
             f"Excluded: {summary['excluded']}",
             f"Markdown: {summary['markdown']}",
             f"DOCX: {summary['docx']}",
-            f"Google Doc: {summary.get('google_doc') or 'Not created'}",
+            f"Google Doc: {(summary.get('google_doc') or {}).get('url') or 'Not created'}",
             "",
             "High-priority actions:",
             *[f"- {action.get('priority')}: {action.get('classification')} - {action.get('reason')}" for action in summary.get("high_priority_actions", [])],
