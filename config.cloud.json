@@ -17,6 +17,8 @@
       "letterhead_name": "Soneh Medical Ltd",
       "audience": "custom",
       "storage": "gdrive",
+      "nice_destination_drive_folder_id": "1QV_T89-7gxx0UvmGKuT2eVFmeZypxT9t",
+      "mhra_destination_drive_folder_id": "1-622aT3XmKxYRTNLN0sCICUv1HXNyYg2",
       "scope_description": "a private specialist outpatient clinic (the Skin and Joint Injection Clinic) providing musculoskeletal joint and soft-tissue injections (including ultrasound-guided corticosteroid and hyaluronic acid injections), minor surgery (skin lesion excision, punch biopsy, cryotherapy), dermatology assessment and treatment, and diagnostic musculoskeletal ultrasound",
       "scope_inclusion_rule": "Include an item in the main report only if it has a realistic interface with the clinic's services: joint and soft-tissue injections and the injectable medicines used in them (corticosteroids, local anaesthetics, hyaluronic acid); minor skin surgery, wound care and surgical consumables; dermatology diagnosis and treatment including skin lesion recognition, skin cancer referral criteria and topical or systemic dermatology treatments; diagnostic and interventional musculoskeletal ultrasound; musculoskeletal conditions treated with injections (osteoarthritis, tendinopathy, bursitis, carpal tunnel syndrome, frozen shoulder); infection control, decontamination, consent and safety processes for outpatient procedures. Exclude general primary care prescribing, chronic disease management, and hospital-only specialist items with no bearing on these services.",
       "scope_keywords": [
@@ -74,6 +76,11 @@
       "Quality standard",
       "Quality standards"
     ]
+  },
+  "mhra": {
+    "alerts_url": "https://www.gov.uk/drug-device-alerts",
+    "request_timeout_seconds": 45,
+    "max_pages": 40
   },
   "thresholds": {
     "high_relevance_min_score": 4,

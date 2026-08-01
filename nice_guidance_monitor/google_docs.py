@@ -314,18 +314,33 @@ def _build_native_doc_content(report: dict, title: str) -> dict:
     add_table("[[TABLE_MEETING_ITEMS]]", meeting_rows)
     add()
 
-    add(f"Appendix A: Low-Relevance Or Excluded {source_label} Items", "heading")
-    appendix_rows = [["Reference", "Title", "Reason"]]
-    for item in excluded:
-        ident = item["guidance_identification"]
-        appendix_rows.append([_item_reference(ident), ident.get("title", ""), item.get("exclusion_reason", "")])
-    for item in low_relevance:
-        ident = item["guidance_identification"]
-        appendix_rows.append([_item_reference(ident), ident.get("title", ""), "Low relevance; awareness only."])
-    if len(appendix_rows) == 1:
-        appendix_rows.append(["None", "", ""])
-    add_table("[[TABLE_APPENDIX_A]]", appendix_rows)
-    add()
+    if report.get("concise_excluded"):
+        add(f"Reviewed And Not Relevant To {report['practice_name']}", "heading")
+        for item in excluded + low_relevance:
+            ident = item["guidance_identification"]
+            brief = item.get("clinical_brief", {}) or {}
+            what = (brief.get("what_changed") or "").strip()
+            meta = ", ".join(x for x in [ident.get("guidance_type", ""), ident.get("publication_or_update_date", "")] if x)
+            add(f"{_item_reference(ident)} - {ident.get('title', '')}" + (f" ({meta})" if meta else ""), "item")
+            if what:
+                add(what)
+            add(f"Why not relevant: {item.get('exclusion_reason') or 'Low relevance to clinic services.'}", "label")
+        if not excluded and not low_relevance:
+            add("None.")
+        add()
+    else:
+        add(f"Appendix A: Low-Relevance Or Excluded {source_label} Items", "heading")
+        appendix_rows = [["Reference", "Title", "Reason"]]
+        for item in excluded:
+            ident = item["guidance_identification"]
+            appendix_rows.append([_item_reference(ident), ident.get("title", ""), item.get("exclusion_reason", "")])
+        for item in low_relevance:
+            ident = item["guidance_identification"]
+            appendix_rows.append([_item_reference(ident), ident.get("title", ""), "Low relevance; awareness only."])
+        if len(appendix_rows) == 1:
+            appendix_rows.append(["None", "", ""])
+        add_table("[[TABLE_APPENDIX_A]]", appendix_rows)
+        add()
 
     add(f"Appendix B: Main {source_label} Sources", "heading")
     source_rows = [["Reference", "Guidance", "URL"]]

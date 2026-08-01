@@ -36,10 +36,17 @@ def analyse_item(item: dict, config: dict) -> dict:
             f"an internal clinical governance report for {practice}, "
             f"{config.get('scope_description', 'a specialist clinic')}"
         )
-        inclusion_rule = config.get("scope_inclusion_rule") or (
-            f"Include only items with a realistic interface with {practice}'s clinical services in the main brief; "
-            "score relevance against those services, not general NHS or primary care relevance. "
-            "Put items with no bearing on those services into appendix/excluded status."
+        inclusion_rule = (
+            config.get("scope_inclusion_rule") or (
+                f"Include only items with a realistic interface with {practice}'s clinical services in the main brief; "
+                "score relevance against those services, not general NHS or primary care relevance. "
+                "Put items with no bearing on those services into appendix/excluded status."
+            )
+        ) + (
+            f"\nScreening output rules: for items NOT relevant to {practice}, set included=false, make "
+            "clinical_brief.what_changed a succinct 1-2 sentence description of what the alert covers, and make "
+            f"exclusion_reason state specifically why it is not relevant to {practice}'s services. For relevant items, "
+            f"write everything about impact on {practice}'s services and the concrete actions {practice} should take."
         )
 
     prompt = dedent(f"""

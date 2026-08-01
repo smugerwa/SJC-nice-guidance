@@ -28,12 +28,18 @@ def _inclusion_rule(config: dict) -> str:
         Do not include specialist-only cancer drugs, tertiary procedures, hospital-only treatments, or NHS commissioning/funding mandates in the main report just because they are NICE guidance. Put them in the appendix unless the source gives a specific primary care action beyond awareness/referral onward.
         Do not classify NHS England funding requirements as GP practice actions.
         """).strip()
+    practice = config.get("practice_name", "the clinic")
     rule = config.get("scope_inclusion_rule") or (
         f"Include an item in the main report only if it has a realistic interface with "
-        f"{config.get('practice_name', 'the clinic')}'s clinical services: {config.get('scope_description', '')}. "
+        f"{practice}'s clinical services: {config.get('scope_description', '')}. "
         "Exclude items with no bearing on those services, even when they are important elsewhere in the NHS."
     )
-    return "Strict inclusion rule:\n" + rule
+    screening = dedent(f"""
+    Screening output rules:
+    For items NOT relevant to {practice}: set included=false; clinical_brief.what_changed must be a succinct 1-2 sentence plain-English description of what the guidance or update covers; exclusion_reason must state specifically why it is not relevant to {practice}'s services. Leave the remaining arrays/objects empty or minimal.
+    For relevant items: write everything about impact on {practice}'s services and the concrete actions {practice} should take. Do not reproduce guidance content that has no bearing on those services; extract only the clinically relevant parts.
+    """).strip()
+    return "Strict inclusion rule:\n" + rule + "\n\n" + screening
 
 
 def analyse_item(item: dict, config: dict) -> dict:

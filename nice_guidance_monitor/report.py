@@ -130,17 +130,33 @@ def build_markdown_report(report: dict) -> str:
     lines.append("")
 
     low_relevance = [i for i in included if i.get("relevance", {}).get("score", 0) < 3]
-    lines += [f"## Appendix A: Low-Relevance Or Excluded {source_label} Items", ""]
-    lines += [f"| Title | {source_label} reference | URL | Reason excluded |", "| --- | --- | --- | --- |"]
-    for item in excluded:
-        ident = item["guidance_identification"]
-        lines.append(f"| {ident.get('title')} | {_item_reference(ident)} | {ident.get('url')} | {item.get('exclusion_reason', '')} |")
-    for item in low_relevance:
-        ident = item["guidance_identification"]
-        lines.append(f"| {ident.get('title')} | {_item_reference(ident)} | {ident.get('url')} | Low relevance; awareness only. |")
-    if not excluded and not low_relevance:
-        lines.append("| None |  |  |  |")
-    lines.append("")
+    if report.get("concise_excluded"):
+        # Screening view: each non-relevant item gets a one-line description
+        # and the specific reason it does not affect this practice's services.
+        lines += [f"## Reviewed and not relevant to {report['practice_name']}", ""]
+        for item in excluded + low_relevance:
+            ident = item["guidance_identification"]
+            brief = item.get("clinical_brief", {}) or {}
+            what = (brief.get("what_changed") or "").strip()
+            meta = ", ".join(x for x in [ident.get("guidance_type", ""), ident.get("publication_or_update_date", "")] if x)
+            headline = f"- **{_item_reference(ident)} - {ident.get('title')}**" + (f" ({meta})" if meta else "")
+            lines.append(f"{headline}: {what}" if what else headline)
+            lines.append(f"  - _Why not relevant:_ {item.get('exclusion_reason') or 'Low relevance to clinic services.'}")
+        if not excluded and not low_relevance:
+            lines.append("- None.")
+        lines.append("")
+    else:
+        lines += [f"## Appendix A: Low-Relevance Or Excluded {source_label} Items", ""]
+        lines += [f"| Title | {source_label} reference | URL | Reason excluded |", "| --- | --- | --- | --- |"]
+        for item in excluded:
+            ident = item["guidance_identification"]
+            lines.append(f"| {ident.get('title')} | {_item_reference(ident)} | {ident.get('url')} | {item.get('exclusion_reason', '')} |")
+        for item in low_relevance:
+            ident = item["guidance_identification"]
+            lines.append(f"| {ident.get('title')} | {_item_reference(ident)} | {ident.get('url')} | Low relevance; awareness only. |")
+        if not excluded and not low_relevance:
+            lines.append("| None |  |  |  |")
+        lines.append("")
 
     lines += [f"## Appendix B: Main {source_label} Sources", ""]
     for item in report["items_reviewed"]:
@@ -292,16 +308,35 @@ def build_docx_report(report: dict, path: Path, config: dict) -> None:
     _shade_header(meeting_table)
 
     low_relevance = [i for i in included if i.get("relevance", {}).get("score", 0) < 3]
-    doc.add_heading(f"Appendix A: Low-Relevance Or Excluded {source_label} Items", 1)
-    appendix_rows = []
-    for item in excluded:
-        ident = item["guidance_identification"]
-        appendix_rows.append([_item_reference(ident), ident.get("title", ""), item.get("exclusion_reason", "")])
-    for item in low_relevance:
-        ident = item["guidance_identification"]
-        appendix_rows.append([_item_reference(ident), ident.get("title", ""), "Low relevance; awareness only."])
-    appendix_table = _add_table(doc, ["Reference", "Title", "Reason"], appendix_rows or [["None", "", ""]], [0.85, 3.25, 3.3])
-    _shade_header(appendix_table)
+    if report.get("concise_excluded"):
+        doc.add_heading(f"Reviewed And Not Relevant To {report['practice_name']}", 1)
+        for item in excluded + low_relevance:
+            ident = item["guidance_identification"]
+            brief = item.get("clinical_brief", {}) or {}
+            what = _clean_docx_text((brief.get("what_changed") or "").strip())
+            meta = ", ".join(x for x in [ident.get("guidance_type", ""), ident.get("publication_or_update_date", "")] if x)
+            p = doc.add_paragraph()
+            head = p.add_run(f"{_item_reference(ident)} - {ident.get('title', '')}" + (f" ({meta})" if meta else ""))
+            head.bold = True
+            if what:
+                p.add_run(f": {what}")
+            reason_p = doc.add_paragraph()
+            reason_run = reason_p.add_run(f"Why not relevant: {item.get('exclusion_reason') or 'Low relevance to clinic services.'}")
+            reason_run.italic = True
+            reason_run.font.size = Pt(10)
+        if not excluded and not low_relevance:
+            doc.add_paragraph("None.")
+    else:
+        doc.add_heading(f"Appendix A: Low-Relevance Or Excluded {source_label} Items", 1)
+        appendix_rows = []
+        for item in excluded:
+            ident = item["guidance_identification"]
+            appendix_rows.append([_item_reference(ident), ident.get("title", ""), item.get("exclusion_reason", "")])
+        for item in low_relevance:
+            ident = item["guidance_identification"]
+            appendix_rows.append([_item_reference(ident), ident.get("title", ""), "Low relevance; awareness only."])
+        appendix_table = _add_table(doc, ["Reference", "Title", "Reason"], appendix_rows or [["None", "", ""]], [0.85, 3.25, 3.3])
+        _shade_header(appendix_table)
 
     doc.add_heading(f"Appendix B: Main {source_label} Sources", 1)
     source_rows = []

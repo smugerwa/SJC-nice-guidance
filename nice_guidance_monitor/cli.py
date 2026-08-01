@@ -22,6 +22,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sample-data", help="Use a local JSON source list instead of live NICE search.")
     parser.add_argument("--no-google", action="store_true", help="Skip native Google Doc creation even when configured.")
     parser.add_argument("--no-llm", action="store_true", help="Use conservative heuristic analysis only.")
+    parser.add_argument("--profile", help="Run only the profile with this id (e.g. soneh-medical).")
+    parser.add_argument("--no-email", action="store_true", help="Skip the completion email (e.g. for backfill runs).")
     return parser.parse_args()
 
 
@@ -44,8 +46,13 @@ def main() -> None:
 
     # Sources are retrieved once; each practice profile then gets its own
     # relevance analysis, report set and destination.
+    profiles = get_profiles(config)
+    if args.profile:
+        profiles = [p for p in profiles if p.get("profile_id") == args.profile]
+        if not profiles:
+            raise SystemExit(f"No profile with id '{args.profile}' in the config.")
     summaries = []
-    for profile in get_profiles(config):
+    for profile in profiles:
         summaries.append(_run_profile(profile, items, list(failures), month_label, args))
 
     print(json.dumps(summaries if len(summaries) > 1 else summaries[0], indent=2))
@@ -81,6 +88,7 @@ def _run_profile(profile: dict, items: list, failures: list, month_label: str, a
             "Primary care relevance" if profile.get("audience", "primary_care") == "primary_care"
             else f"{profile['practice_name']} relevance"
         ),
+        "concise_excluded": profile.get("audience", "primary_care") != "primary_care",
     }
 
     title = f"NICE Guidance Monthly Review - {month_label} - {profile['practice_name']}"
@@ -97,10 +105,16 @@ def _run_profile(profile: dict, items: list, failures: list, month_label: str, a
         if profile.get("storage") == "pending_sharepoint":
             google_doc = {"created": False, "mode": "skipped", "reason": "SharePoint destination not configured yet; local files only."}
         else:
+            # NICE reports can go to their own Drive folder, separate from MHRA.
+            drive_profile = {
+                **profile,
+                "destination_drive_folder_id": profile.get("nice_destination_drive_folder_id")
+                or profile.get("destination_drive_folder_id"),
+            }
             # A Google failure (expired token, API outage) must not lose the run:
             # the local artefacts already exist and the email can still report it.
             try:
-                google_doc = create_native_google_doc_report(report, title, profile)
+                google_doc = create_native_google_doc_report(report, title, drive_profile)
             except Exception as exc:
                 google_doc = {"created": False, "mode": "failed", "reason": str(exc)}
                 failures.append(f"Google Doc creation failed: {exc}")
@@ -125,10 +139,13 @@ def _run_profile(profile: dict, items: list, failures: list, month_label: str, a
         "google_doc": google_doc,
         "failures": failures,
     }
-    try:
-        summary["email_notification_sent_to"] = send_completion_email(summary, profile)
-    except Exception as exc:
-        summary["email_notification_error"] = str(exc)
+    if args.no_email:
+        summary["email_notification_sent_to"] = None
+    else:
+        try:
+            summary["email_notification_sent_to"] = send_completion_email(summary, profile)
+        except Exception as exc:
+            summary["email_notification_error"] = str(exc)
     return summary
 
 
