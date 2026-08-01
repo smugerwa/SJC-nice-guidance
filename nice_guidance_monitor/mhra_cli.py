@@ -80,7 +80,13 @@ def main() -> None:
 
     google_doc = None
     if not args.no_google:
-        google_doc = create_native_google_doc_report(report, title, config)
+        # A Google failure (expired token, API outage) must not lose the run:
+        # the local artefacts already exist and the email can still report it.
+        try:
+            google_doc = create_native_google_doc_report(report, title, config)
+        except Exception as exc:
+            google_doc = {"created": False, "mode": "failed", "reason": str(exc)}
+            failures.append(f"Google Doc creation failed: {exc}")
 
     high_actions = [
         action for item in analysed
