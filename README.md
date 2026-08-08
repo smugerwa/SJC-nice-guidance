@@ -91,6 +91,21 @@ python -m nice_guidance_monitor.cli --config config.json --month "April 2026" --
 
 ## Run Weekly MHRA Alerts Review
 
+> **Retired for Soneh Medical, 8 August 2026 — not scheduled any more.**
+>
+> The VPS cron line that ran this every Monday at 08:30 has been removed. Soneh
+> Medical's MHRA review now happens in the Soneh Hub
+> (`hub.skinjointclinic.co.uk/compliance/mhra`): the clinician reviews each alert
+> as it arrives and saving it generates a per-alert review document in the same
+> Drive folder, with the summary, relevance, justification and Actions Completed
+> table. That replaced a weekly document produced on a timer whether or not
+> anything had been reviewed.
+>
+> **Do not re-add the cron line** — it would refill the Drive folder with
+> untriggered weekly documents alongside the per-alert ones. The commands below
+> still work for a one-off backfill or for the Church Road profile, which is
+> unaffected. The monthly NICE run (1st, 07:30) is also unaffected.
+
 Current 7-day period ending today:
 
 ```powershell
