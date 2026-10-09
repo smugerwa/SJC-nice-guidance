@@ -9,7 +9,7 @@ from .config import load_config, month_bounds, get_profiles
 from .nice import NiceClient, load_sample_items
 from .analysis import analyse_item, fallback_analysis
 from .report import build_markdown_report, build_docx_report
-from .google_docs import create_native_google_doc_report
+from .google_docs import create_native_google_doc_report, upload_docx_as_google_doc
 from .notify import send_completion_email
 
 
@@ -113,11 +113,25 @@ def _run_profile(profile: dict, items: list, failures: list, month_label: str, a
             }
             # A Google failure (expired token, API outage) must not lose the run:
             # the local artefacts already exist and the email can still report it.
-            try:
-                google_doc = create_native_google_doc_report(report, title, drive_profile)
-            except Exception as exc:
-                google_doc = {"created": False, "mode": "failed", "reason": str(exc)}
-                failures.append(f"Google Doc creation failed: {exc}")
+            # "google_doc_mode": "docx" uploads the house-styled DOCX for Drive to
+            # convert (Drive API only), for accounts without the Docs API. A failed
+            # native build also falls back to the DOCX before reporting a failure.
+            native_error = None
+            if drive_profile.get("google_doc_mode") != "docx":
+                try:
+                    google_doc = create_native_google_doc_report(report, title, drive_profile)
+                except Exception as exc:
+                    native_error = exc
+            if google_doc is None or not google_doc.get("created"):
+                try:
+                    google_doc = upload_docx_as_google_doc(docx_path, title, drive_profile)
+                    if native_error is not None and google_doc.get("created"):
+                        google_doc["note"] = f"Native Google Doc build failed ({native_error}); the DOCX was uploaded instead."
+                except Exception as exc:
+                    google_doc = {"created": False, "mode": "failed", "reason": str(exc)}
+                if not google_doc.get("created"):
+                    reason = google_doc.get("reason") or str(native_error)
+                    failures.append(f"Google Doc creation failed: {reason}")
 
     high_actions = [
         action for item in analysed

@@ -36,12 +36,21 @@ def create_native_google_doc_report(report: dict, title: str, config: dict) -> d
     ).execute()
 
     document_id = created["id"]
-    content = _build_native_doc_content(report, title)
-    requests = [{"insertText": {"location": {"index": 1}, "text": content["text"]}}]
-    requests.extend(_base_text_style_requests(content["text"]))
-    requests.extend(content["style_requests"])
-    docs.documents().batchUpdate(documentId=document_id, body={"requests": requests}).execute()
-    _replace_table_markers(docs, document_id, content["text"], content["tables"])
+    try:
+        content = _build_native_doc_content(report, title)
+        requests = [{"insertText": {"location": {"index": 1}, "text": content["text"]}}]
+        requests.extend(_base_text_style_requests(content["text"]))
+        requests.extend(content["style_requests"])
+        docs.documents().batchUpdate(documentId=document_id, body={"requests": requests}).execute()
+        _replace_table_markers(docs, document_id, content["text"], content["tables"])
+    except Exception:
+        # Drive created the file before the Docs API filled it. Never leave an
+        # empty report in the clinic's folder: bin it, then let the caller fall back.
+        try:
+            drive.files().update(fileId=document_id, body={"trashed": True}, supportsAllDrives=True).execute()
+        except Exception as cleanup_exc:
+            print(f"Empty Google Doc {document_id} could not be binned: {cleanup_exc}", flush=True)
+        raise
     _add_letterhead_header(docs, document_id, config.get("letterhead_name") or report.get("practice_name", ""))
 
     return {
@@ -133,22 +142,32 @@ def _add_letterhead_header(docs, document_id: str, letterhead: str) -> None:
         print(f"Google Doc header could not be added: {exc}", flush=True)
 
 
+def _service_account_file(config: dict) -> str | None:
+    return config.get("google_service_account_file") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or None
+
+
 def _has_google_auth_config(config: dict) -> bool:
     token_path = config.get("google_oauth_token_path")
     return any([
         bool(config.get("google_oauth_client_secret")),
         bool(os.getenv("GOOGLE_OAUTH_TOKEN_JSON")),
         bool(token_path and Path(token_path).exists()),
-        bool(os.getenv("GOOGLE_APPLICATION_CREDENTIALS")),
+        bool(_service_account_file(config)),
     ])
 
 
 def _google_services(config: dict):
+    # "google_auth": "service_account" pins the run to a service account. User
+    # OAuth tokens for this app expire (Testing-mode consent, Aug 2026; again by
+    # Sep 2026), which silently stopped Soneh reports reaching Drive; a service
+    # account that is a member of the shared drive does not expire.
+    if config.get("google_auth") == "service_account":
+        return _google_services_from_service_account(config)
     oauth_client_secret = config.get("google_oauth_client_secret")
     token_path = config.get("google_oauth_token_path")
     if oauth_client_secret or os.getenv("GOOGLE_OAUTH_TOKEN_JSON") or (token_path and Path(token_path).exists()):
         return _google_services_from_user_oauth(config)
-    return _google_services_from_service_account()
+    return _google_services_from_service_account(config)
 
 
 def _google_services_from_user_oauth(config: dict):
@@ -185,15 +204,15 @@ def _google_services_from_user_oauth(config: dict):
     return build("drive", "v3", credentials=creds), build("docs", "v1", credentials=creds)
 
 
-def _google_services_from_service_account():
+def _google_services_from_service_account(config: dict):
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
 
+    path = _service_account_file(config)
+    if not path:
+        raise RuntimeError("No service account configured: set google_service_account_file or GOOGLE_APPLICATION_CREDENTIALS.")
     scopes = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/documents"]
-    creds = service_account.Credentials.from_service_account_file(
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"],
-        scopes=scopes,
-    )
+    creds = service_account.Credentials.from_service_account_file(path, scopes=scopes)
     return build("drive", "v3", credentials=creds), build("docs", "v1", credentials=creds)
 
 
